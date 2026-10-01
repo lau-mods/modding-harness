@@ -2,12 +2,13 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { projectTemplate } from '../dist/project/template.js';
+import { readFileSync } from 'node:fs';
 import { initProject } from '../dist/project/project.js';
 import { materialize } from '../dist/spec/projector.js';
 import { parseProject } from '../dist/spec/parser.js';
 
 export const acId = 'AC-F001-001';
+const projectTemplate = readFileSync(new URL('../templates/PROJECT.md', import.meta.url), 'utf8');
 export function specText(types = ['unit']) {
   return projectTemplate.replace('Status: draft', 'Status: active')
     .replace('Project ID:', 'Project ID: harness-test').replace('Mod ID:', 'Mod ID: examplemod')
@@ -106,7 +107,7 @@ fs.writeFileSync(path.join(env.HARNESS_EVIDENCE_DIR,'capture.png'),Buffer.from('
 fs.writeFileSync(env.HARNESS_RESULT_PATH,JSON.stringify({contract:1,scenarioId:env.HARNESS_SCENARIO_ID,runId:env.HARNESS_RUN_ID,stage:env.HARNESS_STAGE,passed:!settings.scenarioFail,assertions:[{name:'observed',passed:!settings.scenarioFail,observed:'one'}],screenshots:[{acId:'${acId}',path:'capture.png'}],persistence:{worldId:'world',saved:true,reloaded:env.HARNESS_STAGE==='assert'},multiplayer:{actorClient:'a',observerClient:settings.singleClient?'a':'b',serverAssertion:{name:'server',passed:true,observed:'one'},observerAssertion:{name:'observer',passed:true,observed:'one'}}}));`);
   const runtimeTypes=types.filter(type=>!['unit','gametest'].includes(type));
   await put(root,'tests/e2e/manifest.json',{contract:1,scenarios:runtimeTypes.length?[{id:'observe',acIds:[acId],verification:runtimeTypes,command:[process.execPath,'tests/e2e/scenarios/observe.mjs']}]:[]});
-  const plan={contract:1,specHash:spec.hash,milestones:[{id:'M01',acIds:[acId],dependsOn:[],sourceFiles:['src/main/result.txt','tests/verification.json'],approach:'Implement the existing behavior',testStrategy:'Assert the specified observation'}],blocked:[],excluded:[]};
+  const plan={contract:1,specHash:spec.hash,milestones:[{id:'M01',acIds:[acId],dependsOn:[],sourceFiles:['src/main/result.txt','tests/verification.json'],approach:'Implement the existing behavior',testStrategy:'Assert the specified observation'}],blocked:[]};
   await put(root,'.harness-state/fake.json',{plan});
   await initProject(root);
   git(root,'add','.');git(root,'commit','-m','Initial project contract');

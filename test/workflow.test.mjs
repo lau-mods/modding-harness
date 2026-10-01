@@ -6,6 +6,8 @@ import { developProject, chatProject, regressionProject } from '../dist/workflow
 import { loadState } from '../dist/state/state.js';
 import { validateProject } from '../dist/project/project.js';
 import { git as guardedGit } from '../dist/git/git.js';
+import { run } from '../dist/process.js';
+import { parseProject } from '../dist/spec/parser.js';
 import { fixture, git, put, acId, specText } from './helpers.mjs';
 
 test('full milestone -> verified local checkpoint -> full regression complete',async t=>{
@@ -73,6 +75,38 @@ test('invalid spec edit leaves canonical source and history intact',async t=>{
  const {root,settings}=await fixture(t);const before=git(root,'rev-parse','HEAD');await settings({spec:'# Not a project'});
  await assert.rejects(chatProject(root,'Update product'),/requires exactly one/);
  assert.equal(await readFile(path.join(root,'PROJECT.md'),'utf8'),specText());assert.equal(git(root,'rev-parse','HEAD'),before);
+});
+test('reference-backed supplemental AC enters canonical spec, projection, state and plan',async t=>{
+ const {root,settings,plan}=await fixture(t);
+ const reference='src/main/existing.mjs',content="export const perform = () => ['result'];\n";
+ await put(root,reference,content);git(root,'add',reference);git(root,'commit','-m','Existing reference implementation');
+ await developProject(root);const checkpoint=(await loadState(root)).checkpoints[0].commit;
+ const original=specText();
+ const supplement=original.slice(original.indexOf('##### AC-F001'),original.indexOf('## Cross-cutting')).replaceAll(acId,'AC-F001-002').replace('Exactly one result exists.','Exactly one result exists and no additional result is produced.');
+ const text=original.replace('## Cross-cutting',supplement+'## Cross-cutting'),spec=parseProject(text);
+ await settings({spec:text,plan:{...plan,specHash:spec.hash,milestones:[{...plan.milestones[0],id:'M02',acIds:['AC-F001-002']}]}});
+ let sawReference=false;
+ const runner=async(command,args,options)=>{
+  if(options.input?.includes('You are the Spec Editor.')) {
+   const context=JSON.parse(options.input.slice(options.input.indexOf('\n{')+1));
+   assert.equal(context.project,original);assert.equal(context.references[reference],content);sawReference=true;
+  }
+  return run(command,args,options);
+ };
+ await chatProject(root,'Clarify the existing one-result requirement using its implementation',runner,[reference]);
+ assert.equal(sawReference,true);assert.equal(await readFile(path.join(root,'PROJECT.md'),'utf8'),text);
+ assert.equal(await readFile(path.join(root,'.harness-state/spec/projections/agent-context.md'),'utf8'),text);
+ const state=await loadState(root);assert.equal(state.acs[acId].status,'verified');assert.equal(state.acs['AC-F001-002'].status,'pending');assert.equal(state.checkpoints[0].commit,checkpoint);
+ const saved=JSON.parse(await readFile(path.join(root,state.planFile),'utf8'));assert.deepEqual(saved.milestones[0].acIds,['AC-F001-002']);
+ assert.match(git(root,'log','-1','--format=%s'),/^harness\(spec\):/);await validateProject(root);
+});
+test('missing or forbidden reference fails before invoking an agent or changing canonical spec',async t=>{
+ const {root}=await fixture(t);await developProject(root);
+ const before=git(root,'rev-parse','HEAD'),state=await loadState(root);assert.equal(state.phase,'complete');assert.ok(state.regression);
+ for(const file of ['src/missing.java','.git/HEAD','src/../PROJECT.md']) {
+  await assert.rejects(chatProject(root,'Refine details',async()=>{assert.fail('Agent must not run');},[file]),/Missing reference|not an allowed|Unsafe/);
+ }
+ assert.equal(await readFile(path.join(root,'PROJECT.md'),'utf8'),specText());assert.equal(git(root,'rev-parse','HEAD'),before);assert.deepEqual(await loadState(root),state);
 });
 test('review sees every newly created untracked source, including outside sourceFiles',async t=>{
  const {root,settings}=await fixture(t);await settings({expectReviewedFile:'src/unplanned.java',changes:{changes:[{path:'src/unplanned.java',content:'// candidate that must be reviewed',encoding:'utf8'}]}});

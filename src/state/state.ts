@@ -6,7 +6,7 @@ import { acFingerprint } from '../spec/diff.js';
 import type { ProjectSpec } from '../spec/parser.js';
 
 export type Phase = 'idle' | 'spec_edit' | 'planning' | 'implementation' | 'static' | 'unit' | 'review' | 'build' | 'gametest' | 'e2e' | 'visual' | 'persistence' | 'multiplayer' | 'checkpoint' | 'regression' | 'complete' | 'failed' | 'blocked';
-export type AcState = { fingerprint: string; status: 'pending' | 'verified' | 'blocked' | 'excluded'; runId: string | null; checkpoint: string | null };
+export type AcState = { fingerprint: string; status: 'pending' | 'verified' | 'blocked'; runId: string | null; checkpoint: string | null };
 export type Checkpoint = { milestone: string; commit: string; acIds: string[]; specHash: string; runId: string };
 export type State = { contract: 1; specHash: string; revision: string; phase: Phase; activeMilestone: string | null; planFile: string | null; acs: Record<string, AcState>; checkpoints: Checkpoint[]; regression: { runId: string; specHash: string; revision: string } | null; reviewFeedback: { milestone: string; runId: string } | null; failure: string | null };
 export function newState(spec: ProjectSpec, revision: string): State {

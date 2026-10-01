@@ -54,8 +54,7 @@ export function parseProject(text: string): ProjectSpec {
   };
   const project = need('Project', 1, null);
   if (sections.filter(s => s.depth === 1).length !== 1) throw new Error('PROJECT.md requires a single project root');
-  const top = Object.fromEntries(['Platform', 'Purpose', 'Scope', 'Terminology', 'Features', 'Cross-cutting Requirements', 'Constraints', 'Open Questions'].map(title => [title, need(title, 2, project)]));
-  need('In Scope', 3, top.Scope!); need('Non-goals', 3, top.Scope!);
+  const top = Object.fromEntries(['Platform', 'Purpose', 'Features', 'Cross-cutting Requirements', 'Constraints', 'Open Questions'].map(title => [title, need(title, 2, project)]));
   for (const title of ['Persistence', 'Multiplayer', 'Visual', 'Performance', 'Compatibility']) need(title, 3, top['Cross-cutting Requirements']!);
   const headerEnd = sections.find(s => s.depth === 2)!.start;
   const header = text.slice(0, headerEnd);

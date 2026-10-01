@@ -94,7 +94,7 @@ export async function sourceContext(root: string, files: string[]): Promise<Reco
   let total = 0;
   for (const file of [...new Set(files)]) {
     const full = await safePath(root, file);
-    if (!allowedImplementationPath(file)) throw new Error(`Source context path is outside implementation scope: ${file}`);
+    if (!allowedImplementationPath(file)) throw new Error(`Source context path is not an allowed implementation path: ${file}`);
     if (!await exists(full)) { sources[file] = null; continue; }
     const data = await readFile(full);
     const content = data.includes(0) ? `[binary file; ${data.length} bytes]` : data.toString('utf8');

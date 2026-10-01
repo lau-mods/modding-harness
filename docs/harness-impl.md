@@ -6,7 +6,7 @@
 
 不明な内部実装事項について質問はせず、以下の設計原則から最も単純で保守しやすい選択をしてください。
 
-ただし、製品仕様上の意味を勝手に追加してはいけません。
+`PROJECT.md` と矛盾しない要件・AC の補足は許容します。補足した製品仕様はまず `PROJECT.md` に記録し、派生仕様へ反映してください。
 
 ---
 
@@ -29,7 +29,7 @@ Harnessが管理する対象は、
 
 です。
 
-Harness自身はMinecraft Mod templateを所有しません。
+Harness自身はMinecraft Mod templateを所有しません。製品仕様を書くための `templates/PROJECT.md` はこの repository に含め、init と create が同じファイルを使用します。
 
 最終的な開発状態は、
 
@@ -88,15 +88,13 @@ AIは推論を行うコンポーネントであり、system stateの正本では
 
 ## PROJECT.md
 
-`PROJECT.md` は唯一の製品仕様の正本です。
+`PROJECT.md` は AC などの詳細も含む唯一の製品仕様の正本です。派生仕様書は正本と矛盾してはいけません。正本と矛盾しない要件・AC の追加や具体化は許容しますが、派生仕様書だけに保持せず、Spec Editor を通じて先に `PROJECT.md` へ反映してください。
 
 以下は最終的にすべて `PROJECT.md` に存在しなければなりません。
 
 - Feature
 - Requirement
 - Acceptance Criterion
-- Scope
-- Non-goals
 - Constraints
 - Visual requirements
 - Persistence requirements
@@ -108,6 +106,8 @@ AIは推論を行うコンポーネントであり、system stateの正本では
 Agent conversation、Execution Plan、generated projection、review result、test resultは製品仕様の正本ではありません。
 
 情報が競合した場合は `PROJECT.md` を優先してください。
+
+未指定の詳細が、既存の類似実装、提示された類似・参考実装、Minecraft/modding における極めて一般的な慣行からほぼ一意に決まる場合は、確認を経ずに進めて構いません。根拠は既存の明示仕様を上書きするものではありません。製品として観測可能な補足は根拠とともに該当 Requirement/AC に記録し、純粋な内部実装の選択まで製品仕様に列挙する必要はありません。根拠を考慮しても実質的に異なる製品判断が残る場合だけ Open Questions として扱います。
 
 ---
 
@@ -122,6 +122,7 @@ Status: draft
 
 Project ID:
 Mod ID:
+Package Path:
 
 ## Platform
 
@@ -130,14 +131,6 @@ NeoForge:
 Java:
 
 ## Purpose
-
-## Scope
-
-### In Scope
-
-### Non-goals
-
-## Terminology
 
 ## Features
 
@@ -234,7 +227,7 @@ Specification ProjectionはAI生成要約にしてはいけません。
 
 です。
 
-禁止する処理は、
+Projection 生成時に禁止する処理は、
 
 - AIによる要約
 - Requirementの追加
@@ -244,6 +237,8 @@ Specification ProjectionはAI生成要約にしてはいけません。
 - product semanticsの推定
 
 です。
+
+要件・AC の補足は Spec Editor が先に `PROJECT.md` へ反映し、構造検証・差分検出・spec revision commit を経て、この deterministic projection に取り込みます。Projection 自体に AI 推論を混ぜません。
 
 materializeされたprojectionが存在する場合、`validate`で `PROJECT.md` から再生成した内容と一致することを検査してください。
 
@@ -306,9 +301,9 @@ GUI texture
 
 Userのproduct changeを既存 `PROJECT.md` 構造へ反映します。
 
-Spec Editorは利用者が要求していない外部観測可能な挙動を追加してはいけません。
+Spec Editor は利用者の要求と既存仕様を反映し、それらと矛盾しない要件・AC の補足を許容してください。無関係な機能を追加したり、明示仕様を利用者の変更要求なしに別の挙動へ置換してはいけません。
 
-実装に不可欠な製品判断が複数存在する場合は、勝手に決めずOpen Questionとして扱ってください。
+既存・参考実装や Minecraft/modding の一般的な慣行からほぼ一意に決まる詳細は、確認せず具体化してください。それでも実質的に異なる製品判断が残る場合だけ Open Question としてください。参照した実装や慣行の根拠を該当する記述に残します。未読の URL やファイル名だけで内容を確認したことにしてはいけません。
 
 Spec Editor実行後は必ずdeterministic validationを行ってください。
 
@@ -331,6 +326,8 @@ Planner outputはstructured JSONとし、schema validationしてください。
 Codex CLIを使用します。
 
 Implementation Agentは現在milestoneだけを実装します。
+
+明示されていない実装詳細でも、関連する既存・参考実装や一般的な Minecraft/modding の慣行からほぼ一意に決まり、`PROJECT.md` に矛盾しなければ確認を待たず進めてください。新たな製品 AC が必要な場合は Spec Editor 経由で先に正本へ反映します。
 
 Implementation Agentには、
 
@@ -815,7 +812,7 @@ replan
 
 Spec Editor自身にはcommitさせず、validation後にHarnessがcommitしてください。
 
-ユーザー要求から導けない製品挙動を追加してはいけません。
+要求と `PROJECT.md` に矛盾しない要件・AC の補足を許容します。`harness chat '要求' --reference src/...` で既存・参考実装を Spec Editor に渡せます。`--reference` は繰り返し指定でき、project 内の許可された実装・テスト path の内容を read-only context として渡します。外部の参考実装は必要な抜粋を要求本文へ含めてください。
 
 ---
 
@@ -830,7 +827,6 @@ structured Execution Planを生成し、schema validationしてください。
 - planned
 - already verified
 - blocked
-- explicitly excluded from requested scope
 
 理由なく未割当ACを残さないでください。
 
@@ -1492,7 +1488,6 @@ Mod作者向けにPROJECT.mdの書き方を説明してください。
 - Action
 - Expected Result
 - Verification
-- Non-goals
 - Open Questions
 
 の書き方を具体例付きで説明してください。
@@ -1526,7 +1521,7 @@ HAR-AC-001
 `PROJECT.md` にFeature、Requirement、ACを直接記述できる。
 
 HAR-AC-002  
-Harnessは `PROJECT.md` に存在しない製品ACを自動生成しない。
+Harness は `PROJECT.md` と矛盾しない補足 AC を Spec Editor 経由で正本へ追加できる。派生仕様や計画にだけ独立した製品 AC を保持しない。
 
 HAR-AC-003  
 派生仕様は `PROJECT.md` の内容だけから決定的に再生成できる。

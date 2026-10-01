@@ -51,40 +51,41 @@ async function fail(root: string, state: State, error: unknown): Promise<never> 
   await saveState(root, state); throw error;
 }
 
-async function makePlan(root: string, config: Config, spec: ProjectSpec, state: State, runner: Runner, scope?: string[]): Promise<Plan> {
+async function makePlan(root: string, config: Config, spec: ProjectSpec, state: State, runner: Runner): Promise<Plan> {
   requireActionable(spec);
   state.reviewFeedback = null;
   await setPhase(root, state, 'planning');
   const runId = randomUUID();
-  const value = await callAgent(root, config.agents.implementation, 'plan', { project: spec.text, specHash: spec.hash, acs: state.acs, priorCheckpoints: state.checkpoints, requestedScope: scope ?? null,
+  const value = await callAgent(root, config.agents.implementation, 'plan', { project: spec.text, specHash: spec.hash, acs: state.acs, priorCheckpoints: state.checkpoints,
     projectFiles: (await gitFiles(root)).filter(allowedImplementationPath), gradle: config.gradle,
     verificationContract: await readFile(new URL('../docs/verification.md', import.meta.url), 'utf8'),
   }, path.join(root, '.harness-state/runs', `${runId}-plan.json`), runner);
-  const plan = validatePlan(value, spec, state, scope);
+  const plan = validatePlan(value, spec, state);
   for (const ac of Object.values(state.acs)) if (ac.status !== 'verified') ac.status = 'pending';
   for (const item of plan.blocked) state.acs[item.acId]!.status = 'blocked';
-  for (const item of plan.excluded) state.acs[item.acId]!.status = 'excluded';
   state.planFile = `.harness-state/plans/${runId}.json`;
-  await save(path.join(root, state.planFile), { plan, scope: scope ?? null });
+  await save(path.join(root, state.planFile), plan);
   state.failure = null; await setPhase(root, state, 'idle');
   return plan;
 }
-export async function planProject(root: string, scope?: string[], runner: Runner = run): Promise<Plan> {
+export async function planProject(root: string, runner: Runner = run): Promise<Plan> {
   return withLock(root, async () => {
     const { config, spec, state } = await openWorkflow(root);
-    try { return await makePlan(root, config, spec, state, runner, scope); }
+    try { return await makePlan(root, config, spec, state, runner); }
     catch (error) { return fail(root, state, error); }
   });
 }
 
-export async function chatProject(root: string, request: string, runner: Runner = run): Promise<void> {
+export async function chatProject(root: string, request: string, runner: Runner = run, referenceFiles: string[] = []): Promise<void> {
   if (!request.trim()) throw new Error('chat requires a product change request');
   return withLock(root, async () => {
     const { config, spec: before, state } = await openWorkflow(root);
+    const references = await sourceContext(root, referenceFiles);
+    for (const [file, content] of Object.entries(references)) if (content === null) throw new Error(`Missing reference source: ${file}`);
     try {
       await setPhase(root, state, 'spec_edit');
       const runId = randomUUID();
-      const result = await callAgent(root, config.agents.implementation, 'spec-edit', { request, project: before.text }, path.join(root, '.harness-state/runs', `${runId}-spec.json`), runner) as { projectMarkdown: string };
+      const result = await callAgent(root, config.agents.implementation, 'spec-edit', { request, project: before.text, references }, path.join(root, '.harness-state/runs', `${runId}-spec.json`), runner) as { projectMarkdown: string };
       const after = parseProject(result.projectMarkdown);
       await verifyIdHistory(root, after);
       if (after.hash === before.hash) { await setPhase(root, state, 'idle'); return; }
@@ -128,11 +129,10 @@ export async function developProject(root: string, runner: Runner = run): Promis
       requireActionable(spec);
       let plan: Plan;
       if (state.planFile) {
-        const saved = await readJson(path.join(root, state.planFile)) as { plan: unknown; scope: string[] | null };
         // Completed milestone IDs are excluded before validating remaining work.
-        const original = validateSchema<Plan>('plan', saved.plan);
+        const original = validateSchema<Plan>('plan', await readJson(path.join(root, state.planFile)));
         plan = validatePlan({ ...original, milestones: original.milestones.filter(ms => !state.checkpoints.some(cp => cp.milestone === ms.id)),
-          blocked: original.blocked.filter(item => state.acs[item.acId]?.status !== 'verified'), excluded: original.excluded.filter(item => state.acs[item.acId]?.status !== 'verified') }, spec, state, saved.scope ?? undefined);
+          blocked: original.blocked.filter(item => state.acs[item.acId]?.status !== 'verified') }, spec, state);
       } else plan = await makePlan(root, config, spec, state, runner);
       for (const milestone of plan.milestones) {
         await requireClean(root);

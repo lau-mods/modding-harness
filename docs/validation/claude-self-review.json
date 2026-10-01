@@ -250,6 +250,24 @@
         ]
       },
       "resolution": "Verdict pass. Minor documentation issue resolved by explicitly stating that --rerun-tasks also executes the test task dependency graph."
+    },
+    {
+      "round": 5,
+      "scope": "Requested canonical-spec refinements, nearly deterministic inference, external PROJECT.md template and removal of unused product sections and partial-plan exclusions",
+      "result": {
+        "verdict": "pass",
+        "issues": [
+          {
+            "severity": "minor",
+            "category": "correctness",
+            "file": "src/workflow.ts",
+            "lines": "79-88",
+            "reason": "New `--reference` paths are only checked after `openWorkflow` and `setPhase('spec_edit')`, and the check runs inside the try block. A mistyped or forbidden reference path is plain user input, but it goes through `fail()`. `fail()` sets phase to `failed` and clears `state.regression`. A project that was `complete` loses its complete status and needs a new full regression, which starts Minecraft at runtime cost. Nothing about the product or source has changed. The new test only checks that PROJECT.md and HEAD stay the same, so it misses this.",
+            "requiredChange": "Resolve and check `sourceContext(root, referenceFiles)` (including the null/missing check) before `setPhase(root, state, 'spec_edit')` and outside the `fail()` handler, so an invalid reference leaves the saved state alone. In the missing/forbidden reference test, also assert that the prior phase and regression record are unchanged."
+          }
+        ]
+      },
+      "resolution": "Pass with one minor issue: invalid reference input could clear complete/regression. Moved reference validation before the state transition and failure handler; regression test now asserts the entire saved complete state remains unchanged."
     }
   ],
   "remainingBlockingOrMajorIssues": []

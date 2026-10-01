@@ -4,6 +4,8 @@ Claude は read-only reviewer です。CLI の safe-mode/restricted/Read-only to
 
 Correctness は AC compliance、NeoForge API usage、lifecycle、client/server separation、registration、serialization、networking、synchronization、thread/context、テストの不足・偽陽性を評価します。
 
+既存・参考実装や一般的な Minecraft/modding の慣行からほぼ一意に決まる詳細は、明示仕様と整合していれば許容します。記載されていないという理由だけで確認を要求しません。補足 AC が正本へ先に反映されていること、明示仕様との衝突や未解決の製品判断が隠されていないことを確認します。
+
 Code quality は不要な abstraction/interface/abstract class/wrapper/helper/local/null check/catch/fallback/config/extension point、premature generalization、概念重複、不明瞭な名前、間接的 control flow、コードを繰り返すだけのコメントを評価します。
 
 > Do not recommend abstractions for hypothetical future requirements.

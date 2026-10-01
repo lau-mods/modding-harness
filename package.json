@@ -13,6 +13,7 @@
     "dist",
     "schemas",
     "prompts",
+    "templates",
     "docs",
     "README.md"
   ],

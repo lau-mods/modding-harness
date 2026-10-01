@@ -20,6 +20,7 @@ test('init preserves existing PROJECT/config and handles gitignore idempotently'
 test('init generates detailed draft and config when absent',async t=>{
  const {root}=await fixture(t,['unit'],{noSpec:true,noConfig:true});
  assert.match(await readFile(path.join(root,'PROJECT.md'),'utf8'),/Status: draft/);
+ assert.equal(await readFile(path.join(root,'PROJECT.md'),'utf8'),await readFile(new URL('../templates/PROJECT.md',import.meta.url),'utf8'));
  assert.match(await readFile(path.join(root,'.harness-config.json'),'utf8'),/"gameTest": "runGameTestServer"/);
 });
 test('project contract, corrupted JSON, unsupported state fail without repair',async t=>{

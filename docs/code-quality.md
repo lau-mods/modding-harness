@@ -9,3 +9,5 @@ Current requirements only. No speculative abstraction. Direct NeoForge API prefe
 抽象化は current requirement、実在する重複、実 API/lifecycle 境界、具体的な correctness/testability 問題で説明できる場合だけ認めます。Git、Gradle、Codex、Claude、MC Pilot の subprocess 境界は実在する境界です。
 
 実装 Agent は現在 milestone の AC のみを実装し、PROJECT.md、Harness、config、state、Git history を編集しません。Minecraft 起動は Harness が決めます。検証コードを弱めて failure を隠さず、action と observed result を検査するテストを書いてください。
+
+未指定の詳細が既存・参考実装や Minecraft/modding の一般的な慣行からほぼ一意に決まり、正本と矛盾しなければ確認を待たず進めます。明示仕様との衝突や根拠のない製品判断を「慣行」として処理しないでください。

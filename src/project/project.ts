@@ -12,7 +12,6 @@ import { loadState } from '../state/state.js';
 import { acFingerprint } from '../spec/diff.js';
 import { loadConfig } from './config.js';
 import type { Config } from './config.js';
-import { projectTemplate } from './template.js';
 import { validateEvidence } from '../verification/evidence.js';
 
 export async function gradleTasks(root: string, runner: Runner = run): Promise<Set<string>> {
@@ -76,7 +75,7 @@ export async function initProject(root: string, runner: Runner = run): Promise<v
     await writeFile(configFile, json(config), { flag: 'wx' });
   }
   const specFile = await safePath(root, 'PROJECT.md');
-  if (!await exists(specFile)) await writeFile(specFile, projectTemplate, { flag: 'wx' });
+  if (!await exists(specFile)) await writeFile(specFile, await readFile(new URL('../../templates/PROJECT.md', import.meta.url), 'utf8'), { flag: 'wx' });
   const spec = parseProject(await readFile(specFile, 'utf8'));
   const ignore = await safePath(root, '.gitignore');
   const content = await exists(ignore) ? await readFile(ignore, 'utf8') : '';

@@ -69,8 +69,7 @@
             "enum": [
               "pending",
               "verified",
-              "blocked",
-              "excluded"
+              "blocked"
             ],
             "type": "string"
           },

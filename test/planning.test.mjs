@@ -5,7 +5,7 @@ import { newState } from '../dist/state/state.js';
 import { parseProject } from '../dist/spec/parser.js';
 import { specText, acId } from './helpers.mjs';
 const spec=parseProject(specText()),state=newState(spec,'rev');
-const plan={contract:1,specHash:spec.hash,milestones:[{id:'M01',acIds:[acId],dependsOn:[],sourceFiles:['src/A.java'],approach:'Existing behavior',testStrategy:'Assertion'}],blocked:[],excluded:[]};
+const plan={contract:1,specHash:spec.hash,milestones:[{id:'M01',acIds:[acId],dependsOn:[],sourceFiles:['src/A.java'],approach:'Existing behavior',testStrategy:'Assertion'}],blocked:[]};
 test('valid structured plan covers existing AC',()=>assert.deepEqual(validatePlan(plan,spec,state),plan));
 test('unknown, unassigned, duplicated ACs and invented conditions rejected',()=>{
  assert.throws(()=>validatePlan({...plan,milestones:[{...plan.milestones[0],acIds:['AC-F999-001']}]},spec,state),/unknown/);
@@ -13,11 +13,9 @@ test('unknown, unassigned, duplicated ACs and invented conditions rejected',()=>
  assert.throws(()=>validatePlan({...plan,milestones:[{...plan.milestones[0],completionCondition:'New behavior'}]},spec,state),/Invalid plan/);
  assert.throws(()=>validatePlan({...plan,blocked:[{acId,reason:'duplicate'}]},spec,state),/more than once/);
 });
-test('blocked and explicit scope exclusions; no implicit exclusions',()=>{
+test('blocked ACs remain explicit and cannot be silently omitted',()=>{
  const blocked={...plan,milestones:[],blocked:[{acId,reason:'Product dependency'}]};assert.deepEqual(validatePlan(blocked,spec,state),blocked);
- const excluded={...plan,milestones:[],excluded:[{acId,reason:'Explicit requested scope'}]};
- assert.throws(()=>validatePlan(excluded,spec,state),/explicit requested scope/);
- assert.deepEqual(validatePlan(excluded,spec,state,[]),excluded);
+ assert.throws(()=>validatePlan({...plan,milestones:[],blocked:[]},spec,state),/Unassigned/);
 });
 test('dependencies ordered; completed milestone IDs never reused',()=>{
  assert.throws(()=>validatePlan({...plan,milestones:[{...plan.milestones[0],dependsOn:['M02']}]},spec,state),/Dependency/);

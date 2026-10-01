@@ -2,9 +2,9 @@
 
 PROJECT.md は製品仕様の唯一の正本です。**実装方法ではなく、プレイヤーや server から観測可能な挙動**を記述してください。クラス分割、内部 helper、Agent 会話、implementation plan は製品要求ではありません。
 
-init が全必須 section を含む draft 雛形を生成します。Project ID、Mod ID、Minecraft、NeoForge、Java と全製品判断を確定したら `Status: active` にします。Open Questions が `None.` 以外なら計画・開発を開始しません。Scope/In Scope には対象、Non-goals には今回実現しない機能を明示します。Constraints と Persistence/Multiplayer/Visual/Performance/Compatibility には全体に適用する要件、対象外なら `None.` を記述します。
+init は [templates/PROJECT.md](../templates/PROJECT.md) の draft 雛形を使用します。Project ID、Mod ID、Minecraft、NeoForge、Java と未決定の製品判断を確定したら `Status: active` にします。Open Questions が `None.` 以外なら計画・開発を開始しません。Constraints と Persistence/Multiplayer/Visual/Performance/Compatibility には全体に適用する要件、対象外なら `None.` を記述します。
 
-Feature はまとまりのある観測可能な機能です。Requirement はその機能に必須の挙動、AC は合否が判断できる具体例です。次は記述例であり、Harness が自動的に Mod の要件へ追加するものではありません。
+Feature はまとまりのある観測可能な機能です。Requirement はその機能に必須の挙動、AC は合否が判断できる具体例です。既存仕様と矛盾しない要件・AC の補足は許容します。補足は先に PROJECT.md へ記録してから派生仕様へ反映し、派生側だけに独立した AC を残しません。次は記述例です。
 
 ```markdown
 ### F-001: Copper Press
@@ -43,6 +43,10 @@ Verification は Markdown list で `unit`、`gametest`、`e2e`、`visual`、`per
 
 ID は `F-001`、`R-F001-001`、`AC-F001-001` の形式で、数字は 3 桁以上です。Requirement と AC の feature 部分は親 Feature と一致させます。ID の title 変更は可能ですが、意味を別の機能に流用しないでください。削除・retire した ID は再使用できません。項目の先頭に `Status: retired` と記述して履歴として残すこともできます。省略時は active、Feature の retire は子にも適用されます。
 
-Open Questions は複数解釈のある製品判断を利用者に戻す場所です。例えば「加工中に block を壊したとき、素材を返すか消費するか」は利用者の判断が必要です。AI は独自に選びません。確定後はその内容を Requirement/AC/Constraints に反映し、Open Questions を `None.` にします。
+既存の類似実装、提示された参考実装、Minecraft/modding の極めて一般的な慣行から詳細がほぼ一意に決まる場合は、確認を待たず進めます。例えば既存加工機と同じ動作を要求され、その実装が破壊時に内容物を drop することを確認できれば、その挙動を Requirement/AC に根拠とともに補足できます。内部 API の選択だけなら AC を増やす必要はありません。明示された要件に反する参考動作は採用しません。
+
+Open Questions は根拠を考慮しても実質的に異なる製品判断が残る場合に使います。加工中の素材を返すか消費するかについて、仕様にも参照実装にも根拠がなければ未決定として記録します。確定後は Requirement/AC/Constraints に反映し、Open Questions を `None.` にします。
 
 通常の製品変更は `harness chat '要求'` を使用します。手動変更時は `harness validate --refresh-projections` で明示的に派生情報を更新し、自分で spec commit してください。`validate` 単独は projection の不一致を拒否します。生成ファイルを製品仕様の編集先にしないでください。
+
+Spec Editor に参照内容を渡すには `harness chat '既存実装に合わせて補足' --reference src/main/java/example/ExistingPress.java` を使用します。複数ファイルは `--reference` を繰り返します。外部の参考実装は必要な抜粋を要求本文に含めます。リンクやファイル名だけで内容を読んだことにはしません。

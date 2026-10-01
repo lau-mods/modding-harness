@@ -1,9 +1,10 @@
-export const projectTemplate = `# Project
+# Project
 
 Status: draft
 
 Project ID:
 Mod ID:
+Package Path:
 
 ## Platform
 
@@ -13,28 +14,14 @@ Java:
 
 ## Purpose
 
-<!-- Describe the player-visible purpose. Finalize all product decisions before Status: active. -->
-
-## Scope
-
-### In Scope
-
-<!-- List the capabilities included in this project. -->
-
-### Non-goals
-
-<!-- State deliberate exclusions; these are not future promises. -->
-
-## Terminology
-
-<!-- Define product terms used by the requirements. -->
+<!-- Describe the player-visible purpose. Resolve genuinely ambiguous product decisions before Status: active. -->
 
 ## Features
 
 <!-- Add concrete features using the following heading structure. Keep IDs stable.
 ### F-001: Feature name
 #### Description
-Observable purpose.
+Observable purpose. Cite relevant existing/reference implementations here when applicable.
 #### Requirements
 ##### R-F001-001: Requirement name
 Observable behavior; avoid implementation choices.
@@ -47,7 +34,7 @@ Action:
 The player action.
 
 Expected Result:
-An observable, unambiguous outcome.
+An observable, unambiguous outcome. Consistent refinements and additional ACs belong in this file first.
 
 Verification:
 - gametest
@@ -82,5 +69,4 @@ Use only the necessary types: unit, gametest, e2e, visual, persistence, multipla
 
 ## Open Questions
 
-<!-- Record unresolved product decisions. Replace this section body with None. when resolved. -->
-`;
+<!-- Record product decisions that remain ambiguous after considering existing/reference implementations and established Minecraft/modding conventions. Proceed without confirmation when these make a detail nearly deterministic and consistent with this specification. Replace this section body with None. when resolved. -->

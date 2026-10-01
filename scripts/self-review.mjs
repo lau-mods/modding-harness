@@ -9,7 +9,7 @@ import { walk } from '../dist/io.js';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const snapshot = await mkdtemp(path.join(tmpdir(), 'harness-self-review-'));
 const sources = {};
-for (const name of ['src', 'schemas', 'prompts', 'test', 'docs', '.github']) {
+for (const name of ['src', 'schemas', 'prompts', 'templates', 'test', 'docs', '.github']) {
   await cp(path.join(root, name), path.join(snapshot, name), { recursive: true });
   for (const file of await walk(path.join(root, name))) sources[`${name}/${file}`] = await readFile(path.join(root, name, file), 'utf8');
 }

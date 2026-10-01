@@ -85,34 +85,12 @@
           "reason"
         ]
       }
-    },
-    "excluded": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "acId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "acId",
-          "reason"
-        ]
-      }
     }
   },
   "required": [
     "contract",
     "specHash",
     "milestones",
-    "blocked",
-    "excluded"
+    "blocked"
   ]
 }
