@@ -14,7 +14,7 @@ import { invalidate, loadState, saveState, withLock } from '../state/state.js';
 import { chatProject, developProject, planProject, regressionProject } from '../workflow.js';
 
 const descriptions: Record<string, string> = {
-  create: 'harness create <directory> --template-repo <repo> --template-ref <revision>',
+  create: 'harness create <directory> --template-repo <repo> [--template-ref <revision>]\nOmitting --template-ref uses the template repository default branch HEAD.',
   init: 'harness init [--project <directory>]\nInstall the project contract without overwriting specification/config.',
   doctor: 'harness doctor [--project <directory>]\nDiagnose external CLI availability and required flags.',
   validate: 'harness validate [--project <directory>] [--refresh-projections]\nValidate contract, specification, generated views and state. Refresh is explicit regeneration after manual spec edits.',
@@ -42,7 +42,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   if (values.reference && command !== 'chat') throw new Error('--reference is only supported by chat');
   switch (command) {
     case 'create': {
-      if (rest.length !== 1 || !values['template-repo'] || !values['template-ref']) throw new Error(descriptions.create);
+      if (rest.length !== 1 || !values['template-repo']) throw new Error(descriptions.create);
       await createProject(path.resolve(rest[0]!), values['template-repo'], values['template-ref']);
       console.log('Created independent project. Review PROJECT.md and commit the bootstrap files before development.'); break;
     }

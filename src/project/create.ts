@@ -6,9 +6,9 @@ import { success } from '../process.js';
 import { gitProcess } from '../git/git.js';
 import { initProject } from './project.js';
 
-export async function createProject(destination: string, templateRepo: string, templateRef: string): Promise<void> {
+export async function createProject(destination: string, templateRepo: string, templateRef?: string): Promise<void> {
   if (await exists(destination)) throw new Error(`Destination already exists: ${destination}`);
-  if (templateRepo.startsWith('-') || templateRef.startsWith('-')) throw new Error('Repository/ref must not begin with -');
+  if (templateRepo.startsWith('-') || templateRef?.startsWith('-')) throw new Error('Repository/ref must not begin with -');
   if (templateRepo.startsWith('./') || templateRepo.startsWith('../')) templateRepo = path.resolve(templateRepo);
   const temporary = await mkdtemp(path.join(tmpdir(), 'harness-create-'));
   try {
@@ -16,7 +16,9 @@ export async function createProject(destination: string, templateRepo: string, t
     // Network reads are confined to this explicitly requested bootstrap operation.
     success(await gitProcess(temporary, ['clone', '--no-checkout', '--', templateRepo, repo]), 'Template clone');
     let revision: string;
-    if (/^[a-f0-9]{7,40}$/i.test(templateRef) || templateRef.startsWith('refs/')) {
+    if (templateRef === undefined) {
+      revision = success(await gitProcess(repo, ['rev-parse', '--verify', 'refs/remotes/origin/HEAD^{commit}']), 'Template default branch HEAD').stdout.trim();
+    } else if (/^[a-f0-9]{7,40}$/i.test(templateRef) || templateRef.startsWith('refs/')) {
       revision = success(await gitProcess(repo, ['rev-parse', '--verify', `${templateRef}^{commit}`]), 'Template ref').stdout.trim();
     } else {
       const refs = success(await gitProcess(repo, ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes/origin', 'refs/tags']), 'Template refs').stdout.trim().split('\n');

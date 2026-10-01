@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { initProject, validateProject, detectTask } from '../dist/project/project.js';
@@ -92,10 +93,16 @@ test('create materializes specified ref into independent history and adds submod
  assert.equal(git(dest,'remote'), '');
  assert.equal(git(dest,'config','--file','.gitmodules','--get','submodule..harness.url'),repository);
  assert.equal(git(path.join(dest,'.harness'),'rev-parse','HEAD'),git(path.join(base,'harness'),'rev-parse','HEAD'));
+ git(root,'checkout','-b','template-default');
+ await put(root,'default-branch.txt','latest default branch');git(root,'add','default-branch.txt');git(root,'commit','-m','Advance default branch');
+ const automatic=path.join(base,'created-from-default');
+ execFileSync(process.execPath,[path.resolve('dist/cli/main.js'),'create',automatic,'--template-repo',root],{cwd:base,stdio:'pipe'});
+ assert.equal(await readFile(path.join(automatic,'default-branch.txt'),'utf8'),'latest default branch');
  git(root,'branch','non-default-template',ref);
  const other=path.join(base,'created-from-branch');
  await createProject(other,path.relative(process.cwd(),root),'non-default-template');
  assert.equal(await readFile(path.join(other,'PROJECT.md'),'utf8'),specText());
+ await assert.rejects(readFile(path.join(other,'default-branch.txt')),{code:'ENOENT'});
  git(root,'tag','non-default-template',ref);
  await assert.rejects(createProject(path.join(base,'ambiguous'),root,'non-default-template'),/ambiguous/);
 });

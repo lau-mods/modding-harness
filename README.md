@@ -18,11 +18,11 @@ package binary は `harness` です。npm package をインストールして使
 ## 新規プロジェクト
 
 ```sh
-harness create ./my-mod --template-repo <NeoForge-repository> --template-ref <commit-or-ref>
+harness create ./<project-name> --template-repo <project-name>
 cd my-mod
 ```
 
-指定 ref のファイルを、新しい独立 Git repository に materialize し、この Harness を `.harness` submodule として導入します。テンプレートの Git 履歴は継承しません。create だけは template と Harness を取得する clone/submodule add を行います。通常 workflow は remote Git 操作を一切行いません。push、reset、clean、stash、履歴書き換えは実装していません。
+取得元の default branch の HEAD を使用します。revision を指定する場合は `--template-ref <commit-or-ref>` を追加してください。新しい独立 Git repository に materialize し、この Harness を `.harness` submodule として導入します。テンプレートの Git 履歴は継承しません。create だけは template と Harness を取得する clone/submodule add を行います。通常 workflow は remote Git 操作を一切行いません。push、reset、clean、stash、履歴書き換えは実装していません。
 
 ## 既存プロジェクト
 

@@ -682,9 +682,10 @@ init
 
 ```sh
 harness create ./my-mod \
-  --template-repo <repo> \
-  --template-ref <revision>
+  --template-repo <repo> [--template-ref <revision>]
 ```
+
+`--template-ref` は省略可能です。省略時は取得元 repository の default branch の HEAD を使用します。
 
 推測fallbackは行わないでください。
 
