@@ -11,6 +11,8 @@ import { callAgent } from '../agents/agents.js';
 import type { Review } from '../agents/agents.js';
 import { McPilot, pilotEnv } from '../runtime/mc-pilot.js';
 
+export class ScenarioError extends Error {}
+
 export type Scenario = { id: string; acIds: string[]; verification: Verification[]; command: string[] };
 type Assertion = { name: string; passed: boolean; observed: string };
 export type ScenarioResult = { contract: 1; scenarioId: string; runId: string; stage: string; passed: boolean; assertions: Assertion[]; screenshots: { acId: string; path: string }[];
@@ -51,9 +53,11 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
       HARNESS_CLIENTS: JSON.stringify(config.runtime.clients),
     } });
     await save(path.join(dir, `${scenario.id}-${stage}-process.json`), execution);
-    success(execution, `E2E ${scenario.id}/${stage}`);
+    try { success(execution, `E2E ${scenario.id}/${stage}`); }
+    catch (error) { throw new ScenarioError((error as Error).message, { cause: error }); }
     const result = validateSchema<ScenarioResult>('scenario-result', await readJson(resultFile));
-    if (result.scenarioId !== scenario.id || result.runId !== runId || result.stage !== stage || !result.passed || result.assertions.some(assertion => !assertion.passed)) throw new Error(`Scenario assertions failed or identity mismatch: ${scenario.id}/${stage}`);
+    if (result.scenarioId !== scenario.id || result.runId !== runId || result.stage !== stage) throw new Error(`Scenario result identity mismatch: ${scenario.id}/${stage}`);
+    if (!result.passed || result.assertions.some(assertion => !assertion.passed)) throw new ScenarioError(`Scenario assertions failed: ${scenario.id}/${stage}`);
     return result;
   };
   let failure: unknown;
@@ -65,18 +69,18 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
       if (scenario.verification.includes('persistence')) {
         await phase('persistence');
         const setup = await execute(scenario, 'setup', generation);
-        if (!setup.persistence?.saved) throw new Error(`${scenario.id} persistence setup must save world state`);
+        if (!setup.persistence?.saved) throw new ScenarioError(`${scenario.id} persistence setup must save world state`);
         await runtime.stop();
         const previous = generation;
         generation = await runtime.start();
         if (previous === generation) throw new Error('Persistence verification requires a new process generation');
         result = await execute(scenario, 'assert', generation);
-        if (!result.persistence?.reloaded || result.persistence.worldId !== setup.persistence.worldId) throw new Error(`${scenario.id} did not reload the saved world`);
+        if (!result.persistence?.reloaded || result.persistence.worldId !== setup.persistence.worldId) throw new ScenarioError(`${scenario.id} did not reload the saved world`);
       } else result = await execute(scenario, 'execute', generation);
       if (scenario.verification.includes('multiplayer')) {
         await phase('multiplayer');
         const mp = result.multiplayer;
-        if (!mp || mp.actorClient === mp.observerClient || !config.runtime.clients.includes(mp.actorClient) || !config.runtime.clients.includes(mp.observerClient) || !mp.serverAssertion.passed || !mp.observerAssertion.passed) throw new Error(`${scenario.id} requires Client A action, server assertion, and distinct Client B observation`);
+        if (!mp || mp.actorClient === mp.observerClient || !config.runtime.clients.includes(mp.actorClient) || !config.runtime.clients.includes(mp.observerClient) || !mp.serverAssertion.passed || !mp.observerAssertion.passed) throw new ScenarioError(`${scenario.id} requires Client A action, server assertion, and distinct Client B observation`);
       }
       for (const id of scenario.acIds.filter(id => acIds.includes(id))) {
         const ac = spec.acs.find(ac => ac.id === id)!;
@@ -103,7 +107,7 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
               review = { verdict: issues.length ? review.verdict : 'pass', issues };
             } else await save(initialFile, review);
             await save(reviewFile, { ...await readJson(reviewFile) as object, initialReview: path.relative(root, initialFile), effectiveReview: review });
-            if (review.verdict !== 'pass') throw new Error(`Visual review failed: ${id}`);
+            if (review.verdict !== 'pass') throw new ScenarioError(`Visual review failed: ${id}`);
             artifacts.push(path.relative(root, reviewFile));
           }
           evidence.push({ acId: id, specHash: spec.hash, milestone, verification: type, result: 'passed', artifacts });
@@ -115,7 +119,8 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
     try { await runtime.stop(); }
     catch (error) {
       const errors = [failure, error].filter(Boolean) as Error[];
-      failure = new AggregateError(errors, errors.map(item => item.message).join('; '));
+      const combined = new AggregateError(errors, errors.map(item => item.message).join('; '));
+      failure = failure instanceof ScenarioError ? new ScenarioError(combined.message, { cause: combined }) : combined;
     }
   }
   if (failure) throw failure;

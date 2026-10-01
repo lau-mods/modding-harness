@@ -60,4 +60,6 @@ multiplayer では `multiplayer:{actorClient:"client-a",observerClient:"client-b
 
 `.harness-state/evidence/<run-id>/manifest.json`、AC ごとの result.json、コピーされた JUnit XML と PNG、process output、MC Pilot call、runtime log が保存されます。すべての required AC/type pair が成功し、review/build 等の共通 invariant を満たした場合だけ checkpoint できます。失敗 evidence を削除して合格へ見せかける処理はありません。
 
+E2E は `ScenarioError` の場合だけ修正へ戻し、それ以外は E2E だけを同一実行内で一度再試行します。再試行の証跡は同じ run の `e2e-retry/`、各試行の失敗理由は `e2e-failure.json` に残します。再試行も失敗した場合は、既存の検証済み AC を修正対象に戻さず停止します。停止後の部分 resume は行いません。
+
 runtime logs の ERROR/FATAL、Exception、missing texture/model、load failure は停止理由です。実行結果が変わらないようにするため、AI reviewer に log failure の免除権限は与えません。resource validator は JSON syntax、重複パス、不正 asset path、既知ローカル model/texture reference を検査します。外部 namespace や Minecraft resource loader の意味論までは検証しません。

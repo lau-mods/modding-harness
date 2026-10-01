@@ -15,13 +15,14 @@ import type { Milestone } from '../planning/plan.js';
 import type { Phase } from '../state/state.js';
 import { validateResources } from './static.js';
 import { checkReports, clearReports, loadTestMappings } from './reports.js';
-import { loadScenarios, runRuntime } from './e2e.js';
+import { loadScenarios, runRuntime, ScenarioError } from './e2e.js';
 import type { Evidence } from './e2e.js';
 
 export type VerificationRun = { contract: 1; runId: string; specHash: string; milestone: string; acIds: string[]; passed: boolean; gates: { gate: string; passed: boolean }[]; evidence: Evidence[]; failure: string | null };
 export async function verify(root: string, config: Config, spec: ProjectSpec, milestone: Milestone, phase: (phase: Phase) => Promise<void>, runner: Runner = run): Promise<VerificationRun> {
   const runId = randomUUID(), dir = path.join(root, '.harness-state/evidence', runId);
   const report: VerificationRun = { contract: 1, runId, specHash: spec.hash, milestone: milestone.id, acIds: milestone.acIds, passed: false, gates: [], evidence: [], failure: null };
+  let e2eExecutionError: unknown;
   await mkdir(dir, { recursive: true });
   const types = new Set(spec.acs.filter(ac => milestone.acIds.includes(ac.id)).flatMap(ac => ac.verification));
   const gate = async (name: Phase, action: () => Promise<void>): Promise<void> => {
@@ -67,15 +68,31 @@ export async function verify(root: string, config: Config, spec: ProjectSpec, mi
     await gate('build', () => gradle('build', config.gradle.build));
     if (types.has('gametest')) await gate('gametest', () => testGate('gametest', config.gradle.gameTest!));
     if ([...types].some(type => !['unit', 'gametest'].includes(type))) await gate('e2e', async () => {
-      const scenarios = await loadScenarios(root, spec);
-      report.evidence.push(...await runRuntime(root, config, spec, milestone.acIds, milestone.id, runId, dir, scenarios, phase, runner));
+      for (let attempt = 0; ; attempt++) {
+        const attemptDir = attempt === 0 ? dir : path.join(dir, 'e2e-retry');
+        try {
+          const scenarios = await loadScenarios(root, spec);
+          report.evidence.push(...await runRuntime(root, config, spec, milestone.acIds, milestone.id, runId, attemptDir, scenarios, phase, runner));
+          return;
+        } catch (error) {
+          const scenario = error instanceof ScenarioError;
+          await save(path.join(attemptDir, 'e2e-failure.json'), { scenario, message: (error as Error).message });
+          if (scenario || attempt === 1) throw error;
+          process.stderr.write('[harness] Retrying E2E only (2/2)\n');
+        }
+      }
     });
     for (const id of milestone.acIds) for (const type of spec.acs.find(ac => ac.id === id)!.verification) {
       if (!report.evidence.some(item => item.acId === id && item.verification === type && item.result === 'passed')) throw new Error(`Missing required evidence ${id}/${type}`);
     }
     report.passed = true;
-  } catch (error) { report.failure = (error as Error).message; }
+  } catch (error) {
+    report.failure = (error as Error).message;
+    if (report.gates.at(-1)?.gate === 'e2e' && !(error instanceof ScenarioError)) e2eExecutionError = error;
+  }
   for (const id of milestone.acIds) await save(path.join(dir, id, 'result.json'), { acId: id, specHash: spec.hash, milestone: milestone.id, passed: report.passed, evidence: report.evidence.filter(item => item.acId === id), failure: report.failure });
   await save(path.join(dir, 'manifest.json'), report);
+  // Execution errors stop the workflow without invalidating verified ACs for corrective implementation.
+  if (e2eExecutionError) throw e2eExecutionError;
   return report;
 }
