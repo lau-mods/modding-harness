@@ -2,6 +2,8 @@
 
 milestone 検証は Static → Unit → Claude review → Build → GameTest → E2E (必要な Visual/Persistence/Multiplayer を含む) の順です。compile/unit/build task は常に実行し、GameTest と client runtime は対象 AC の Verification から判断します。build/GameTest failure 後に client を起動しません。全 active AC の検証済み checkpoint が揃い、working tree が clean なら complete です。過去 checkpoint を改変して修復しません。
 
+初回計画で作業を milestone に分割し、いずれかの milestone の実装を開始した時点で、その計画を固定します。以後は milestone の再分割・統合・追加・削除・実行順序・依存関係・対象 AC の変更を含め、計画の変更を禁止します。実装の難しさや検証の失敗を理由に再計画せず、当初の milestone ごとに全 AC の実装を揃えて検証・checkpoint します。一部だけを先行して実装・検証し、残りを後回しにしてはいけません。
+
 ## Unit / GameTest
 
 `.harness-config.json` の gradle task を実行し、存在を tasks --all で確認します。単一の conventional task のみを自動検出します。AC が要求する unit/GameTest は、導入先の `tests/verification.json` に新鮮な JUnit XML testcase を対応付けてください。
