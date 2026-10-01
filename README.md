@@ -45,7 +45,6 @@ git commit -m "Define project and install harness"
 harness plan
 harness develop
 harness status
-harness regression
 ```
 
 create で作成した場合は、template 由来のファイルも最初の commit に含めてください。通常 workflow は dirty tree で開始できません。失敗時は変更と evidence を残し、自動破棄・stash・利用者変更の commit はしません。
@@ -62,7 +61,7 @@ chat は Spec Editor → deterministic validation → projection 更新 → AC �
 
 既存・参考実装や Minecraft/modding の一般的な慣行からほぼ一意に決まる詳細は、明示仕様との整合を保って確認なしに進めます。Spec Editor へ実装を示す場合は `--reference` を必要な project source/test path ごとに指定します。外部 URL の内容は自動取得しないため、必要な抜粋を要求本文へ含めてください。実質的に異なる製品判断が残る場合だけ Open Questions にします。
 
-milestone は既存 AC のみを対象に実装し、Static、Unit、Claude review、Build、GameTest、必要な E2E を通過した候補だけを local commit にします。commit には `Harness-Milestone`、`Harness-Spec-Hash`、`Harness-AC`、`Harness-Verification-Run` trailer が入ります。最後に全 active AC の regression を実行した場合だけ complete です。blocked AC がある状態は complete になりません。
+milestone は既存 AC のみを対象に実装し、Static、Unit、Claude review、Build、GameTest、必要な E2E を通過した候補だけを local commit にします。commit には `Harness-Milestone`、`Harness-Spec-Hash`、`Harness-AC`、`Harness-Verification-Run` trailer が入ります。全 active AC に検証済み checkpoint が揃い、working tree が clean なら complete です。blocked AC がある状態は complete になりません。
 
 plan は全 active AC を網羅します。変更された AC、feature 要件が変わった AC、cross-cutting/constraint 変更の影響を受ける全 AC は検証済み状態を引き継ぎません。過去 checkpoint は残し、新しい milestone を作ります。
 

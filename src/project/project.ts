@@ -117,8 +117,7 @@ export async function validateProject(root: string): Promise<{ config: Config; s
         }
       }
     }
-    if (state.phase === 'complete' && (!state.regression || state.regression.specHash !== spec.hash || state.regression.revision !== state.revision || active.some(ac => state.acs[ac.id]!.status !== 'verified'))) throw new Error('Invalid complete state: current regression and all verified ACs are required');
-    if (state.phase === 'complete' && state.regression) await validateEvidence(root, spec, { ...state.regression, milestone: 'regression', acIds: active.map(ac => ac.id) });
+    if (state.phase === 'complete' && active.some(ac => state.acs[ac.id]!.status !== 'verified')) throw new Error('Invalid complete state: verified local checkpoints for all active ACs are required');
   }
   return { config, spec };
 }

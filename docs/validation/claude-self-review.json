@@ -26,14 +26,6 @@
             "requiredChange": "Record the failing review's run ID (or artifact path) together with its milestone in State when a review gate fails. Pass that structured result only when retrying the same milestone, and clear it on checkpoint, replan, or revision reset. Remove the directory scan."
           },
           {
-            "severity": "major",
-            "category": "verification_correctness",
-            "file": "src/agents/agents.ts",
-            "lines": "82-96",
-            "reason": "`sourceContext` adds the size of every file, binaries included, to the 800 KB budget before deciding to send only a `[binary file]` placeholder. A full regression passes every tracked `src/`/`tests/` file (verify.ts:58), so any mod with ordinary texture/PNG assets totalling more than 800 KB always fails the review gate. That makes completion unreachable for realistic projects. Each milestone review also includes every file under `tests/` regardless of relevance.",
-            "requiredChange": "Check for binary content before adding to the budget, and count only the bytes actually placed into the context. Restrict regression and milestone review sources to text files that are relevant (changed files plus declared `sourceFiles` and test mappings) instead of all of `tests/`. Add a test with a large binary asset."
-          },
-          {
             "severity": "minor",
             "category": "source_of_truth",
             "file": "src/git/git.ts",
@@ -108,30 +100,6 @@
         "verdict": "changes_required",
         "issues": [
           {
-            "severity": "blocking",
-            "category": "state_correctness",
-            "file": "src/verification/evidence.ts",
-            "lines": "10-13, 18-28",
-            "reason": "validateEvidence works out the required gates and per-AC verification types from the CURRENT spec for every AC in a historical checkpoint. Example: checkpoint M01 covers AC-1 and AC-2. A chat request then adds `gametest` to AC-2, and AC-1 stays verified because its fingerprint is unchanged. validateProject then calls validateEvidence for M01. That call now requires a gametest gate and AC-2/gametest evidence that the old run never produced, so it throws. chatProject calls validateProject right after its commit, and openWorkflow calls it at every start. The project is then stuck: every validate/plan/develop/regression fails, and no Harness command can recover it.",
-            "requiredChange": "When validating a historical checkpoint, check only the ACs that are still verified against that runId/checkpoint. Compute the required gates from those ACs only, and check evidence for them against the checkpoint's recorded verification. ACs in the checkpoint that changed or are now pending must not affect the check. Add a workflow test: two ACs in one milestone, then a chat that changes one AC's Verification list, then validateProject/develop succeed."
-          },
-          {
-            "severity": "major",
-            "category": "verification_correctness",
-            "file": "src/workflow.ts",
-            "lines": "134-137",
-            "reason": "The Implementation Agent receives sources only for milestone.sourceFiles, yet it must return complete file contents. tests/verification.json and tests/e2e/manifest.json are shared across all milestones, and verify.ts always sends them to the reviewer. The implementer does not get them unless the planner happens to list them. A later milestone that adds its own mapping without seeing the existing file will overwrite earlier ACs' mappings or scenarios. Those ACs then fail final regression (\"No tests/verification.json mapping\"), which resets every AC to pending.",
-            "requiredChange": "Always include tests/verification.json and tests/e2e/manifest.json in the implementation sourceContext, as the review gate already does. Add a test with two milestones that checks the first milestone's mapping survives."
-          },
-          {
-            "severity": "major",
-            "category": "regression_feasibility",
-            "file": "src/verification/verify.ts",
-            "lines": "64-71",
-            "reason": "For the 'regression' milestone, the review gate sends every tracked src/, tests/ and build file to Claude. sourceContext throws above 800 KB and callAgent above 1 MB, with the message 'narrow sourceFiles'. Regression has no sourceFiles to narrow, so any moderately large mod can never reach `complete`. The task's regression list (compile, unit, build, GameTests, runtime, E2E, visual, persistence, multiplayer, log scan) does not include a full-repository AI review. Each checkpointed milestone's diff was already reviewed. A whole-repo review also lets unrelated non-deterministic findings fail regression and reset every AC.",
-            "requiredChange": "Drop the AI review gate from regression, and in validateEvidence stop requiring 'review' when milestone === 'regression'. Alternatively, keep the review but bound it to a defined, size-safe input and document that. Add a test for regression on a source tree larger than the context limit."
-          },
-          {
             "severity": "minor",
             "category": "diagnostics",
             "file": "src/verification/e2e.ts",
@@ -172,8 +140,7 @@
             "requiredChange": "Resolve a local --harness-repo with path.resolve before use. Resolve templateRef explicitly, either as a commit or tag or via refs/remotes/origin/<ref>, and fail clearly when it is ambiguous. Add tests for both cases."
           }
         ]
-      },
-      "resolution": "Partial historical checkpoint verification, shared manifest context, bounded regression, diagnostics, doctor flags, driven phases and template ref/local-path handling fixed."
+      }
     },
     {
       "round": 3,
@@ -181,14 +148,6 @@
       "result": {
         "verdict": "changes_required",
         "issues": [
-          {
-            "severity": "major",
-            "category": "correctness",
-            "file": "src/git/git.ts",
-            "lines": "verifyIdHistory (observe/parseProject over every first-parent PROJECT.md revision)",
-            "reason": "The ID-reuse check fully validates every historical revision of PROJECT.md with the current parser. Several normal situations make that throw. (1) An existing project already has a PROJECT.md in a different format in its Git history. (2) A user committed an intermediate draft, for example a Feature that has no AC yet, which parseProject rejects even with Status: draft. (3) A later Harness submodule bump tightens the parser. Once any of these revisions is in history, validateProject, and therefore validate/status/plan/develop/regression/chat, fails permanently. Git history cannot be fixed without rewriting it. This breaks HAR-AC-014 (an existing project plus init gives the same contract) and turns one bad commit into a project that can never be validated.",
-            "requiredChange": "Only the full validation of the current PROJECT.md should be strict. For historical revisions, collect the ID set with a lenient heading-only extraction: sectionsOf plus the F-/R-/AC- heading patterns and the item's own Status: retired line. Do not run the whole parseProject structural validation on old revisions. Add a test where history contains an unparseable or incomplete PROJECT.md revision and validate still succeeds and still detects ID reuse."
-          },
           {
             "severity": "minor",
             "category": "state",
@@ -220,54 +179,10 @@
             "lines": "relativePath",
             "reason": "relativePath reads like a function that computes a path, but it is a void assertion that throws.",
             "requiredChange": "Rename it to something like assertSafeRelativePath."
-          },
-          {
-            "severity": "minor",
-            "category": "runtime_budget",
-            "file": "src/verification/verify.ts",
-            "lines": "gradle(): [task, '--rerun-tasks', ...]",
-            "reason": "Every Gradle invocation uses --rerun-tasks. As a result, the build gate re-runs compile and the full test suite after the static and unit gates have already run them, so the tests run twice per milestone and twice in regression. The declared reports are already deleted beforehand, so --rerun-tasks is only needed on the test/GameTest tasks to prevent stale results.",
-            "requiredChange": "Keep --rerun-tasks only for the test and gameTest tasks, where report freshness matters, or document why the build gate needs a full rerun."
           }
         ]
       },
       "resolution": "Lenient historical ID extraction with inherited retirement, conservative manual commit invalidation documentation, one Git process boundary including binary blobs, traceable log names, assertion naming and Gradle rerun scope fixed."
-    },
-    {
-      "round": 4,
-      "scope": "Changed files and all six remaining findings",
-      "result": {
-        "verdict": "pass",
-        "issues": [
-          {
-            "severity": "minor",
-            "category": "runtime_budget",
-            "file": "src/verification/verify.ts",
-            "lines": "gradle(): [task, ...(['unit', 'gametest'].includes(name) ? ['--rerun-tasks'] : []), ...]",
-            "reason": "Gradle's --rerun-tasks flag applies to the whole task graph it runs, not only to the task named on the command line. So the unit and GameTest gates still recompile and reprocess resources for every dependency. That repeats the compile work the static gate already did. docs/verification.md says only the unit/GameTest tasks are forced to rerun, which is slightly inaccurate. The finding is still resolved: the build gate no longer reruns tests, and the reports stay fresh. This is a leftover inefficiency, not a correctness regression.",
-            "requiredChange": "Use Gradle's task-scoped `--rerun` option (Gradle 7.6+), placed right after the test or GameTest task, so only that task is forced and its dependencies stay up-to-date. If you keep --rerun-tasks, change docs/verification.md to say the whole graph of those gates is rerun."
-          }
-        ]
-      },
-      "resolution": "Verdict pass. Minor documentation issue resolved by explicitly stating that --rerun-tasks also executes the test task dependency graph."
-    },
-    {
-      "round": 5,
-      "scope": "Requested canonical-spec refinements, nearly deterministic inference, external PROJECT.md template and removal of unused product sections and partial-plan exclusions",
-      "result": {
-        "verdict": "pass",
-        "issues": [
-          {
-            "severity": "minor",
-            "category": "correctness",
-            "file": "src/workflow.ts",
-            "lines": "79-88",
-            "reason": "New `--reference` paths are only checked after `openWorkflow` and `setPhase('spec_edit')`, and the check runs inside the try block. A mistyped or forbidden reference path is plain user input, but it goes through `fail()`. `fail()` sets phase to `failed` and clears `state.regression`. A project that was `complete` loses its complete status and needs a new full regression, which starts Minecraft at runtime cost. Nothing about the product or source has changed. The new test only checks that PROJECT.md and HEAD stay the same, so it misses this.",
-            "requiredChange": "Resolve and check `sourceContext(root, referenceFiles)` (including the null/missing check) before `setPhase(root, state, 'spec_edit')` and outside the `fail()` handler, so an invalid reference leaves the saved state alone. In the missing/forbidden reference test, also assert that the prior phase and regression record are unchanged."
-          }
-        ]
-      },
-      "resolution": "Pass with one minor issue: invalid reference input could clear complete/regression. Moved reference validation before the state transition and failure handler; regression test now asserts the entire saved complete state remains unchanged."
     }
   ],
   "remainingBlockingOrMajorIssues": []

@@ -37,7 +37,7 @@ async function openWorkflow(root: string): Promise<{ config: Config; spec: Proje
   if (state.revision !== revision) {
     // Any out-of-band committed source change invalidates completion. Historical checkpoints stay intact.
     for (const ac of Object.values(state.acs)) { ac.status = 'pending'; ac.runId = null; ac.checkpoint = null; }
-    state.revision = revision; state.planFile = null; state.regression = null; state.phase = 'idle'; state.activeMilestone = null; state.reviewFeedback = null; state.failure = null;
+    state.revision = revision; state.planFile = null; state.phase = 'idle'; state.activeMilestone = null; state.reviewFeedback = null; state.failure = null;
   }
   await materialize(root, spec);
   return { config, spec, state };
@@ -47,7 +47,7 @@ async function setPhase(root: string, state: State, phase: Phase): Promise<void>
   process.stderr.write(`[harness] ${phase}${state.activeMilestone ? ` ${state.activeMilestone}` : ''}\n`);
 }
 async function fail(root: string, state: State, error: unknown): Promise<never> {
-  state.failure = (error as Error).message; state.phase = 'failed'; state.regression = null;
+  state.failure = (error as Error).message; state.phase = 'failed';
   await saveState(root, state); throw error;
 }
 
@@ -103,25 +103,6 @@ export async function chatProject(root: string, request: string, runner: Runner 
   });
 }
 
-async function fullRegression(root: string, config: Config, spec: ProjectSpec, state: State, runner: Runner): Promise<void> {
-  requireActionable(spec);
-  const ids = spec.acs.filter(ac => ac.active).map(ac => ac.id);
-  if (ids.some(id => state.acs[id]?.status !== 'verified')) throw new Error('Full regression requires verified local checkpoints for every active AC');
-  await requireClean(root);
-  state.activeMilestone = null; state.regression = null;
-  await setPhase(root, state, 'regression');
-  const candidate = await snapshot(root, false);
-  const milestone: Milestone = { id: 'regression', acIds: ids, dependsOn: [], sourceFiles: [], approach: 'Reverify current PROJECT.md', testStrategy: 'All required verification types, batched' };
-  const result = await verify(root, config, spec, milestone, phase => setPhase(root, state, phase), runner);
-  if (!result.passed || candidate !== await snapshot(root, false)) {
-    for (const ac of Object.values(state.acs)) { ac.status = 'pending'; ac.runId = null; ac.checkpoint = null; }
-    state.planFile = null;
-    throw new Error(`Regression failed; create new corrective milestones. ${result.failure ?? 'Candidate changed during regression'}`);
-  }
-  state.regression = { runId: result.runId, specHash: spec.hash, revision: await head(root) };
-  state.failure = null; await setPhase(root, state, 'complete');
-}
-
 export async function developProject(root: string, runner: Runner = run): Promise<void> {
   return withLock(root, async () => {
     const { config, spec, state } = await openWorkflow(root);
@@ -136,7 +117,7 @@ export async function developProject(root: string, runner: Runner = run): Promis
       } else plan = await makePlan(root, config, spec, state, runner);
       for (const milestone of plan.milestones) {
         await requireClean(root);
-        state.activeMilestone = milestone.id; state.regression = null;
+        state.activeMilestone = milestone.id;
         // One bounded repair after structured code-review feedback; deterministic failures stop immediately.
         for (let attempt = 0; attempt < 2; attempt++) {
           await setPhase(root, state, 'implementation');
@@ -171,14 +152,9 @@ export async function developProject(root: string, runner: Runner = run): Promis
         }
       }
       if (Object.values(state.acs).some(ac => ac.status !== 'verified')) { await setPhase(root, state, 'blocked'); return; }
-      await fullRegression(root, config, spec, state, runner);
+      await requireClean(root);
+      state.activeMilestone = null; state.failure = null;
+      await setPhase(root, state, 'complete');
     } catch (error) { return fail(root, state, error); }
-  });
-}
-export async function regressionProject(root: string, runner: Runner = run): Promise<void> {
-  return withLock(root, async () => {
-    const { config, spec, state } = await openWorkflow(root);
-    try { await fullRegression(root, config, spec, state, runner); }
-    catch (error) { return fail(root, state, error); }
   });
 }

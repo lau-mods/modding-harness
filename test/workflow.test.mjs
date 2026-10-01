@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { developProject, chatProject, regressionProject } from '../dist/workflow.js';
+import { developProject, chatProject } from '../dist/workflow.js';
 import { loadState } from '../dist/state/state.js';
 import { validateProject } from '../dist/project/project.js';
 import { git as guardedGit } from '../dist/git/git.js';
@@ -10,13 +10,13 @@ import { run } from '../dist/process.js';
 import { parseProject } from '../dist/spec/parser.js';
 import { fixture, git, put, acId, specText } from './helpers.mjs';
 
-test('full milestone -> verified local checkpoint -> full regression complete',async t=>{
+test('milestone checkpoint completes development',async t=>{
  const {root}=await fixture(t,['unit','gametest']);const before=git(root,'rev-parse','HEAD');
  await developProject(root);const state=await loadState(root);
- assert.equal(state.phase,'complete');assert.equal(state.acs[acId].status,'verified');assert.ok(state.regression);
+ assert.equal(state.phase,'complete');assert.equal(state.acs[acId].status,'verified');
  assert.notEqual(git(root,'rev-parse','HEAD'),before);assert.equal(state.checkpoints.length,1);
  const msg=git(root,'log','-1','--format=%B');for(const key of ['Harness-Milestone: M01','Harness-Spec-Hash:','Harness-AC: AC-F001-001','Harness-Verification-Run:'])assert.ok(msg.includes(key));
- assert.deepEqual((await readFile(path.join(root,'.harness-state/order.log'),'utf8')).trim().split('\n'),['classes','test','build','runGameTestServer','classes','test','build','runGameTestServer']);
+ assert.deepEqual((await readFile(path.join(root,'.harness-state/order.log'),'utf8')).trim().split('\n'),['classes','test','build','runGameTestServer']);
  await validateProject(root);assert.equal(git(root,'status','--porcelain'),'');
 });
 test('dirty user work is preserved, never stashed or committed',async t=>{
@@ -45,20 +45,15 @@ test('source modified during verification cannot be committed',async t=>{
 test('all E2E types produce evidence; persistence really restarts server/client',async t=>{
  const {root}=await fixture(t,['unit','gametest','e2e','visual','persistence','multiplayer']);
  await developProject(root);const state=await loadState(root);assert.equal(state.phase,'complete');
- const report=JSON.parse(await readFile(path.join(root,'.harness-state/evidence',state.regression.runId,'manifest.json'),'utf8'));
+ const report=JSON.parse(await readFile(path.join(root,'.harness-state/evidence',state.checkpoints[0].runId,'manifest.json'),'utf8'));
  assert.deepEqual(new Set(report.evidence.map(item=>item.verification)),new Set(['unit','gametest','e2e','visual','persistence','multiplayer']));
  const order=await readFile(path.join(root,'.harness-state/order.log'),'utf8');
  assert.match(order,/scenario setup\nmct client stop a\nmct client stop b\nmct client list/);
- assert.equal(order.split('mct client launch a').length-1,4);
+ assert.equal(order.split('mct client launch a').length-1,2);
 });
 test('multiplayer cannot pass with only one observer',async t=>{
  const {root,settings}=await fixture(t,['multiplayer']);await settings({singleClient:true});await assert.rejects(developProject(root),/distinct Client B/);
  assert.equal((await loadState(root)).checkpoints.length,0);
-});
-test('regression failure preserves past commit and requires corrective milestone',async t=>{
- const {root,settings}=await fixture(t);await developProject(root);const before=git(root,'rev-parse','HEAD');
- await settings({failTask:'build'});await assert.rejects(regressionProject(root),/Regression failed/);
- assert.equal(git(root,'rev-parse','HEAD'),before);const state=await loadState(root);assert.equal(state.phase,'failed');assert.equal(state.checkpoints.length,1);assert.equal(state.acs[acId].status,'pending');assert.equal(state.planFile,null);
 });
 test('chat updates canonical spec, commits spec separately, regenerates and replans',async t=>{
  const {root,settings,plan}=await fixture(t);await developProject(root);const previous=git(root,'rev-parse','HEAD');
@@ -102,7 +97,7 @@ test('reference-backed supplemental AC enters canonical spec, projection, state 
 });
 test('missing or forbidden reference fails before invoking an agent or changing canonical spec',async t=>{
  const {root}=await fixture(t);await developProject(root);
- const before=git(root,'rev-parse','HEAD'),state=await loadState(root);assert.equal(state.phase,'complete');assert.ok(state.regression);
+ const before=git(root,'rev-parse','HEAD'),state=await loadState(root);assert.equal(state.phase,'complete');
  for(const file of ['src/missing.java','.git/HEAD','src/../PROJECT.md']) {
   await assert.rejects(chatProject(root,'Refine details',async()=>{assert.fail('Agent must not run');},[file]),/Missing reference|not an allowed|Unsafe/);
  }
@@ -134,10 +129,6 @@ test('historical checkpoint validates only unchanged ACs after a verification-ty
  await chatProject(root,'Add GameTest coverage for the second criterion');
  let state=await loadState(root);assert.equal(state.acs[acId].status,'verified');assert.equal(state.acs['AC-F001-002'].status,'pending');
  await validateProject(root);await developProject(root);state=await loadState(root);assert.equal(state.phase,'complete');assert.equal(state.checkpoints.length,2);
-});
-test('regression handles an existing source tree above the model context limit',async t=>{
- const {root}=await fixture(t);await put(root,'src/existing-large.txt','existing baseline\n'.repeat(60_000));git(root,'add','.');git(root,'commit','-m','Existing large source');
- await developProject(root);assert.equal((await loadState(root)).phase,'complete');
 });
 test('validate rejects missing checkpoint evidence',async t=>{
  const {root}=await fixture(t);await developProject(root);const state=await loadState(root);

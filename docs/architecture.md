@@ -1,6 +1,6 @@
 # Architecture
 
-`PROJECT.md` → Markdown AST → validated specification → deterministic projections → structured plan → milestone gates → local checkpoint → full regression の明示的な状態機械です。会話履歴に依存しません。製品判断を state、plan、config に保存しません。
+`PROJECT.md` → Markdown AST → validated specification → deterministic projections → structured plan → milestone gates → local checkpoint → complete の明示的な状態機械です。会話履歴に依存しません。製品判断を state、plan、config に保存しません。
 
 `src/spec` は mdast-util-from-markdown による heading/section/source range/親子関係の抽出、stable ID と Verification の検査、exact source excerpt の projection、deterministic AC fingerprint を担当します。cross-cutting/constraint 等の feature 外変更は全 AC、feature description/Requirement 変更は feature 全 AC を無効化します。削除・retire 済み ID の再登場は first-parent Git specification history から検査するため、state を消しても再利用できません。
 

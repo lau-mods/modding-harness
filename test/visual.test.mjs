@@ -20,11 +20,11 @@ test('visual rereviews retain initial findings, suppress new noncritical issues,
    if(command!==config.agents.review.command)return run(command,args,options);
    const input=options.input,context=JSON.parse(input.slice(input.indexOf('\n{'),input.indexOf('\nRead each attached')));
    assert.deepEqual(context.initialReview,expectedInitial);reviewed=true;
-   assert.match(input,/new critical defects/);assert.match(input,/including regression/);
+   assert.match(input,/new critical defects/);assert.match(input,/subsequent milestone reviews/);
    assert.ok((await readFile(path.join(options.cwd,'screenshot-1.png'))).length);
    return {code:0,stdout:JSON.stringify({subtype:'success',structured_output:review}),stderr:''};
   };
-  const result=runRuntime(root,config,currentSpec,[acId],'regression',runId,dir,currentScenarios,async()=>{},runner);
+  const result=runRuntime(root,config,currentSpec,[acId],'M01',runId,dir,currentScenarios,async()=>{},runner);
   if(passed)assert.equal((await result).length,1);else await assert.rejects(result,/Visual review failed/);
   assert.equal(reviewed,true);
   const artifact=JSON.parse(await readFile(path.join(dir,`${acId}-${currentScenarios[0].id}-visual.json`),'utf8'));
@@ -57,7 +57,7 @@ test('a failed visual reviewer does not establish a baseline; an initial pass fr
   }
   return run(command,args,options);
  };
- const check=()=>{const id=randomUUID();return runRuntime(root,config,spec,[acId],'regression',id,path.join(root,'.harness-state/evidence',id),scenarios,async()=>{},runner);};
+ const check=()=>{const id=randomUUID();return runRuntime(root,config,spec,[acId],'M01',id,path.join(root,'.harness-state/evidence',id),scenarios,async()=>{},runner);};
  await settings({invalidReview:true});await assert.rejects(check(),/JSON/);
  await settings({invalidReview:false});await check();
  expected={verdict:'pass',issues:[]};

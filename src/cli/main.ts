@@ -11,7 +11,7 @@ import { loadConfig } from '../project/config.js';
 import { parseProject } from '../spec/parser.js';
 import { materialize } from '../spec/projector.js';
 import { invalidate, loadState, saveState, withLock } from '../state/state.js';
-import { chatProject, developProject, planProject, regressionProject } from '../workflow.js';
+import { chatProject, developProject, planProject } from '../workflow.js';
 
 const descriptions: Record<string, string> = {
   create: 'harness create <directory> --template-repo <repo> [--template-ref <revision>]\nOmitting --template-ref uses the template repository default branch HEAD.',
@@ -21,8 +21,7 @@ const descriptions: Record<string, string> = {
   status: 'harness status [--project <directory>]\nShow phase, AC coverage, checkpoint and working tree.',
   chat: 'harness chat <product change request> [--project <directory>] [--reference <project-source-path>]\nEdit PROJECT.md, validate, create a local spec revision and replan. Repeat --reference to supply existing/reference implementations.',
   plan: 'harness plan [--project <directory>]\nGenerate a structured execution plan for every active AC.',
-  develop: 'harness develop [--project <directory>]\nImplement milestones, verify local checkpoints, then run full regression.',
-  regression: 'harness regression [--project <directory>]\nReverify all active ACs against their local checkpoints.',
+  develop: 'harness develop [--project <directory>]\nImplement milestones and verify local checkpoints.',
 };
 
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
@@ -75,7 +74,6 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       const plan = await planProject(root); console.log(`${plan.milestones.length} milestones, ${plan.blocked.length} blocked`); break;
     }
     case 'develop': await developProject(root); console.log(`Development phase: ${(await loadState(root))?.phase}`); break;
-    case 'regression': await regressionProject(root); console.log('Full-project regression passed.'); break;
     default: throw new Error(`Unknown command: ${command}; use harness --help`);
   }
 }

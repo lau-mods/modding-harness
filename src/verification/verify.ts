@@ -56,7 +56,7 @@ export async function verify(root: string, config: Config, spec: ProjectSpec, mi
     };
     await gate('static', async () => { await validateResources(root); await gradle('compile', config.gradle.compile); });
     await gate('unit', () => testGate('unit', config.gradle.test));
-    if (milestone.id !== 'regression') await gate('review', async () => {
+    await gate('review', async () => {
       const files = [...new Set([...milestone.sourceFiles,
         ...(await git(root, ['diff', '--name-only', '-z', 'HEAD'])).split('\0').filter(allowedImplementationPath),
         ...(await git(root, ['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(allowedImplementationPath),

@@ -1,6 +1,6 @@
 # Verification contract
 
-milestone 検証は Static → Unit → Claude review → Build → GameTest → E2E (必要な Visual/Persistence/Multiplayer を含む) の順です。compile/unit/build task は常に実行し、GameTest と client runtime は対象 AC の Verification から判断します。build/GameTest failure 後に client を起動しません。最終 regression は全 active AC、全 unit、必要な全 GameTest、全 relevant scenario をまとめて実行します。コードは各 checkpoint で独立レビュー済みなので、regression で repository 全文の AI レビューを繰り返しません。visual AC の画像レビューは再実行します。過去 checkpoint を改変して修復しません。
+milestone 検証は Static → Unit → Claude review → Build → GameTest → E2E (必要な Visual/Persistence/Multiplayer を含む) の順です。compile/unit/build task は常に実行し、GameTest と client runtime は対象 AC の Verification から判断します。build/GameTest failure 後に client を起動しません。全 active AC の検証済み checkpoint が揃い、working tree が clean なら complete です。過去 checkpoint を改変して修復しません。
 
 ## Unit / GameTest
 
@@ -50,7 +50,7 @@ await writeFile(process.env.HARNESS_RESULT_PATH, JSON.stringify({
 
 `observedCount` は例示上の変数で、実 scenario が API の結果から取得します。固定値で成功を返さないでください。正式 schema は `schemas/scenario-result.schema.json`。exit 0 と passed=true に加えて、少なくとも一つの成功 assertion と run/scenario/stage identity の一致が必要です。
 
-visual は machine assertion 成功後にのみ画像レビューします。screenshots は `[{"acId":"AC-F001-001","path":"capture.png"}]` のように evidence directory 内の PNG を示します。画像を読む reviewer には対象 AC と observations のみを渡します。
+visual は milestone 検証で machine assertion 成功後にのみ画像レビューします。screenshots は `[{"acId":"AC-F001-001","path":"capture.png"}]` のように evidence directory 内の PNG を示します。画像を読む reviewer には対象 AC、observations、初回の画像レビュー結果を渡します。
 
 persistence を宣言した scenario は、HARNESS_STAGE=setup で setup/save し、`persistence:{worldId:"stable-world-id",saved:true,reloaded:false}` を返します。Harness が全 client/server を停止・再起動した後、stage=assert で同じ world を reload し、state assertion と `reloaded:true` を返します。同一 process 内だけの確認は通りません。
 

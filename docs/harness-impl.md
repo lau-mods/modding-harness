@@ -25,7 +25,6 @@ Harnessが管理する対象は、
 - Minecraft runtime verification
 - visual verification
 - local Git checkpoint
-- full-project regression
 
 です。
 
@@ -36,7 +35,6 @@ Harness自身はMinecraft Mod templateを所有しません。製品仕様を書
 - `PROJECT.md` の全active Acceptance Criteriaが実装済み
 - 必要なverificationがすべて成功
 - 各milestoneが検証済みlocal commitとして確定
-- 最後にPROJECT全体のregressionが成功
 
 した状態です。
 
@@ -72,8 +70,6 @@ Milestone
     └─ Verified Local Commit
     ↓
 Next Milestone
-    ↓
-Full Regression
     ↓
 Complete
 ```
@@ -655,7 +651,6 @@ harness status
 harness chat
 harness plan
 harness develop
-harness regression
 ```
 
 package binaryとして利用できるようにしてください。
@@ -844,18 +839,10 @@ plan if required
 ↓
 milestone loop
 ↓
-final regression
+complete
 ```
 
 です。
-
----
-
-## regression
-
-現在の `PROJECT.md` 全体を対象に必要verificationを再実行します。
-
-最終complete判定はregression成功後だけにしてください。
 
 ---
 
@@ -1128,7 +1115,7 @@ Implementation Agentが自由にclientを起動できないようにしてくだ
 
 runtime起動はHarnessが必要verificationから判断します。
 
-MC Pilotの検査用worldはスーパーフラット固定とし、同一実装プロジェクトではmilestone・再検証・regression・process restartをまたいで同じworldを使い回してください。
+MC Pilotの検査用worldはスーパーフラット固定とし、同一実装プロジェクトではmilestone・再検証・process restartをまたいで同じworldを使い回してください。
 
 Milestone planning時にもMinecraft起動コストを考慮してください。
 
@@ -1270,34 +1257,12 @@ Client B observation
 
 ---
 
-# Full regression
+# Completion
 
-全milestone完了後、必ず現在のPROJECT全体についてregressionを実行してください。
+全active ACの必要verificationが成功し、各milestoneの検証済みlocal checkpointが揃い、working treeがcleanならcompleteにしてください。
 
-regressionでは可能な範囲で、
 
-```text
-compile
-all unit
-build
-all GameTests
-runtime start
-all relevant E2E
-visual
-persistence
-multiplayer
-log scan
-```
-
-を効率的にbatchしてください。
-
-Milestone中に別milestoneの未実装作業を先取りする必要はありません。
-
-Final regressionだけは全PROJECTを対象として構いません。
-
-regression failure時に過去checkpointを改変してはいけません。
-
-必要なfixを新しいcorrective milestoneとして扱ってください。
+Milestone中に別milestoneの未実装作業を先取りする必要はありません。過去checkpointを改変せず、必要なfixは新しいmilestoneとして扱ってください。
 
 ---
 
@@ -1419,7 +1384,7 @@ fake Gradle / fake scenario commandsを使って、
 - GameTest failure stops runtime
 - e2e result collection
 - evidence generation
-- final regression state
+- completion
 
 をtestしてください。
 
@@ -1471,7 +1436,6 @@ docs/runtime.md
 - PROJECT.md
 - plan
 - develop
-- regression
 - checkpoint model
 - external dependencies
 - current limitations
@@ -1546,7 +1510,7 @@ HAR-AC-009
 未検証milestoneはcommit済みcheckpointとして扱わない。
 
 HAR-AC-010  
-全milestone後に `PROJECT.md` 全体のregressionが実行される。
+全active ACの検証済みcheckpointが揃った時点でcompleteとなる。
 
 HAR-AC-011  
 新規projectは指定されたNeoForge repository/refを基礎として作成される。
@@ -1615,7 +1579,7 @@ HAR-AC-022
 10. milestone state machine
 11. E2E/evidence
 12. MC Pilot boundary
-13. regression
+13. completion
 14. create/init
 15. CLI polish
 16. docs

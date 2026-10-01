@@ -34,7 +34,7 @@ deploy は build 完了後、runtime 起動前だけに行います。source は
 
 停止は server stdin の stop による保存・client 切断を先に行い、その後 MC Pilot の client stop で client process を終了します。30 秒以内に終了しない専用 server は kill して run を失敗扱いにします。Persistence は同じ world を保持してこの lifecycle をもう一度実行します。runtime log と設定された client logs の当該 run 中の追加分を検査し、エラーがあれば checkpoint しません。
 
-検査用 world はスーパーフラット固定です。Harness が server.properties を設定し、同一実装プロジェクトでは専用 world `harness-superflat` を milestone・再検証・regression・process restart をまたいで使い回します。
+検査用 world はスーパーフラット固定です。Harness が server.properties を設定し、同一実装プロジェクトでは専用 world `harness-superflat` を milestone・再検証・process restart をまたいで使い回します。
 
 2026-10-01 に、参考リポジトリ内の MC Pilot 0.16.0 の実 --help、up/down/client list/server list と実装を確認しました。MC Pilot 0.16.0 の up は標準 server manager 用で、NeoForge installer を提供しないため、この Harness は明示された Java argv で専用 NeoForge server を管理します。実 client 起動・停止は MC Pilot に委譲します。
 

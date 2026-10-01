@@ -31,7 +31,6 @@
         "persistence",
         "multiplayer",
         "checkpoint",
-        "regression",
         "complete",
         "failed",
         "blocked"
@@ -134,36 +133,6 @@
         ]
       }
     },
-    "regression": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "runId": {
-              "type": "string",
-              "minLength": 1
-            },
-            "specHash": {
-              "type": "string",
-              "minLength": 1
-            },
-            "revision": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "runId",
-            "specHash",
-            "revision"
-          ]
-        }
-      ]
-    },
     "failure": {
       "type": [
         "string",
@@ -205,7 +174,6 @@
     "planFile",
     "acs",
     "checkpoints",
-    "regression",
     "failure",
     "reviewFeedback"
   ]
