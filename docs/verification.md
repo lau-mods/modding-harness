@@ -21,6 +21,8 @@ compile/build gate は Gradle の通常の up-to-date 判定を使います。un
 
 ## E2E
 
+E2E シナリオの検証対象は、この Mod が追加・変更した処理のみです。継承してそのまま利用する標準動作など、Minecraft / NeoForge / その他依存Mod側で担保されている処理は再検証しません。
+
 Mod 固有の scenario は導入先に置きます。`tests/e2e/manifest.json` と普通の実行可能コマンドを使い、DSL は導入しません。
 
 ```json
