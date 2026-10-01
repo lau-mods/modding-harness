@@ -16,6 +16,10 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "initialIssue": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
           "severity": {
             "enum": [
               "blocking",

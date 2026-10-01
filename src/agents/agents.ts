@@ -8,7 +8,7 @@ import type { Runner } from '../process.js';
 import { harnessRoot, schema, validateSchema } from '../schema.js';
 import type { AgentConfig } from '../project/config.js';
 
-export type Review = { verdict: 'pass' | 'changes_required'; issues: { severity: 'blocking' | 'major' | 'minor'; category: string; file: string; lines: string; reason: string; requiredChange: string }[] };
+export type Review = { verdict: 'pass' | 'changes_required'; issues: { severity: 'blocking' | 'major' | 'minor'; initialIssue?: number | null; category: string; file: string; lines: string; reason: string; requiredChange: string }[] };
 export type Changes = { changes: { path: string; content: string | null; encoding: 'utf8' | 'base64' }[] };
 
 export function codexOutputSchema(name: string): unknown {

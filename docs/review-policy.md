@@ -1,6 +1,8 @@
 # Independent review policy
 
-Claude は read-only reviewer です。CLI の safe-mode/restricted/Read-only tool list と、Harness の前後 snapshot 比較の両方を使います。source、spec、Harness、state、index/ref を変更したレビューは verdict に関係なく failure です。原文仕様、現在 milestone、diff、必要な source/test を確認します。visual review は対象 AC、成功済み machine observations、対応 PNG のみに限定します。
+Claude は read-only reviewer です。CLI の safe-mode/restricted/Read-only tool list と、Harness の前後 snapshot 比較の両方を使います。source、spec、Harness、state、index/ref を変更したレビューは verdict に関係なく failure です。原文仕様、現在 milestone、diff、必要な source/test を確認します。visual review は対象 AC、成功済み machine observations、対応 PNG、初回の画像レビュー結果に限定します。
+
+画像レビューは初回に指摘をまとめ、同じ AC 仕様・scenario の再レビュー（regression を含む）では初回指摘と新規 critical のみを扱います。critical は明示 AC の主要表示が欠落・破綻・判読不能となり利用を妨げる欠陥で、既存 severity の `blocking` に対応します。初回指摘は `initialIssue` に初回 issues の 1 始まりの番号を指定し、新規は null とします。Harness は初回結果を保持し、参照のない／無効な新規 major/minor を修正要求から除外します。実装修正で初回結果をリセットせず、AC 仕様の変更時は新たな初回とします。元の結果と適用後の `effectiveReview` は evidence に保存します。
 
 Correctness は AC compliance、NeoForge API usage、lifecycle、client/server separation、registration、serialization、networking、synchronization、thread/context、テストの不足・偽陽性を評価します。
 

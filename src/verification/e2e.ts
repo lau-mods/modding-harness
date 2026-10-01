@@ -5,6 +5,7 @@ import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
 import { validateSchema } from '../schema.js';
 import type { ProjectSpec, Verification } from '../spec/parser.js';
+import { acFingerprint } from '../spec/diff.js';
 import type { Config } from '../project/config.js';
 import { callAgent } from '../agents/agents.js';
 import type { Review } from '../agents/agents.js';
@@ -94,7 +95,14 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
               await copyFile(source, destination); images.push(destination); artifacts.push(path.relative(root, destination));
             }
             const reviewFile = path.join(dir, `${id}-${scenario.id}-visual.json`);
-            const review = await callAgent(root, config.agents.review, 'visual', { ac: ac.source.raw, observations: result.assertions, screenshots: images.map((_, i) => `screenshot-${i + 1}.png`) }, reviewFile, runner, images) as Review;
+            const initialFile = path.join(root, '.harness-state/reviews/visual', acFingerprint(spec, id).slice(7), `${id}-${scenario.id}.json`);
+            const initialReview = await exists(initialFile) ? validateSchema<Review>('review', await readJson(initialFile)) : null;
+            let review = await callAgent(root, config.agents.review, 'visual', { ac: ac.source.raw, observations: result.assertions, screenshots: images.map((_, i) => `screenshot-${i + 1}.png`), initialReview }, reviewFile, runner, images) as Review;
+            if (initialReview) {
+              const issues = review.issues.filter(issue => issue.severity === 'blocking' || (issue.initialIssue != null && issue.initialIssue <= initialReview.issues.length));
+              review = { verdict: issues.length ? review.verdict : 'pass', issues };
+            } else await save(initialFile, review);
+            await save(reviewFile, { ...await readJson(reviewFile) as object, initialReview: path.relative(root, initialFile), effectiveReview: review });
             if (review.verdict !== 'pass') throw new Error(`Visual review failed: ${id}`);
             artifacts.push(path.relative(root, reviewFile));
           }
