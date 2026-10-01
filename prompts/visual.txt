@@ -1,0 +1,4 @@
+Review the supplied AC text, machine observations and screenshot files. Read every supplied image before deciding. Return only the review schema JSON.
+Check only explicitly specified visual behavior: missing textures, broken models, UV/orientation, clipping, overlap, text overflow, unintended transparency, z-fighting and malformed GUI layout.
+Do not infer process health, GUI state, item counts, block/entity state or server connection from pixels. Those require successful machine-readable assertions and are supplied separately.
+Do not introduce visual requirements that are absent from the AC. Do not modify files or execute programs. Pass only if every supplied image satisfies its explicit AC; otherwise return actionable issues.

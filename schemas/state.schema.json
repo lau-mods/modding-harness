@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": 1,
+      "type": "integer"
+    },
+    "specHash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phase": {
+      "enum": [
+        "idle",
+        "spec_edit",
+        "planning",
+        "implementation",
+        "static",
+        "unit",
+        "review",
+        "build",
+        "gametest",
+        "e2e",
+        "visual",
+        "persistence",
+        "multiplayer",
+        "checkpoint",
+        "regression",
+        "complete",
+        "failed",
+        "blocked"
+      ],
+      "type": "string"
+    },
+    "activeMilestone": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "planFile": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\.harness-state/plans/[a-f0-9-]{36}\\.json$"
+        }
+      ]
+    },
+    "acs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "verified",
+              "blocked",
+              "excluded"
+            ],
+            "type": "string"
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "fingerprint",
+          "status",
+          "runId",
+          "checkpoint"
+        ]
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "milestone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "acIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "specHash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "milestone",
+          "commit",
+          "acIds",
+          "specHash",
+          "runId"
+        ]
+      }
+    },
+    "regression": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "runId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "specHash": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "runId",
+            "specHash",
+            "revision"
+          ]
+        }
+      ]
+    },
+    "failure": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewFeedback": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "milestone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runId": {
+              "type": "string",
+              "pattern": "^[a-f0-9-]{36}$"
+            }
+          },
+          "required": [
+            "milestone",
+            "runId"
+          ]
+        }
+      ]
+    }
+  },
+  "required": [
+    "contract",
+    "specHash",
+    "revision",
+    "phase",
+    "activeMilestone",
+    "planFile",
+    "acs",
+    "checkpoints",
+    "regression",
+    "failure",
+    "reviewFeedback"
+  ]
+}

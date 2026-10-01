@@ -1,0 +1,389 @@
+{
+  "date": "2026-10-01",
+  "timezone": "Asia/Tokyo",
+  "templateRepository": "https://github.com/NeoForgeMDKs/MDK-1.21.1-ModDevGradle.git",
+  "templateRevision": "7819b902a351b03fe71db00754d103b5a31c4ebf",
+  "project": "/private/tmp/new-harness-live-lhoc2B/official-examplemod",
+  "minecraft": "1.21.1",
+  "neoForge": "21.1.252",
+  "gradle": "9.2.1",
+  "java": 21,
+  "harnessExecutable": "/Users/shinya/workspace/new-harness/dist/cli/main.js",
+  "finalSourceDigest": "b670aa3243b811d03e62cf003ac84eb6462c945badfb2b4175c0ac1479019015",
+  "sourceDigestDefinition": "SHA-256 of sorted files in src, schemas, prompts, each path + NUL + bytes + NUL, in folder order",
+  "notes": [
+    "New project created by the implemented harness create CLI from official MDK; dedicated new world and runtime directories; existing downloaded libraries copied as cache only.",
+    "Local .harness gitlink pins an earlier implementation snapshot. All reported runs used the current development binary via --project.",
+    "Mod unit task was NO-SOURCE. AC declares only e2e and persistence.",
+    "No Mod source or scenario script is included in this repository record. Full process outputs remain in the temporary project."
+  ],
+  "state": {
+    "contract": 1,
+    "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+    "revision": "af2e43882b548f6ac65c75b0db1e93345f16eaf1",
+    "phase": "complete",
+    "activeMilestone": null,
+    "planFile": ".harness-state/plans/626e5020-19a6-4bde-9be7-345fb9d268fe.json",
+    "acs": {
+      "AC-F001-001": {
+        "fingerprint": "sha256:cd9fe4da3a261e7393e5e700564adde947cc57e427df2da1b2249819867449eb",
+        "status": "verified",
+        "runId": "38cc3ce5-e417-42b6-a398-9386d50b8b1d",
+        "checkpoint": "af2e43882b548f6ac65c75b0db1e93345f16eaf1"
+      }
+    },
+    "checkpoints": [
+      {
+        "milestone": "M01",
+        "commit": "af2e43882b548f6ac65c75b0db1e93345f16eaf1",
+        "acIds": [
+          "AC-F001-001"
+        ],
+        "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+        "runId": "38cc3ce5-e417-42b6-a398-9386d50b8b1d"
+      }
+    ],
+    "regression": {
+      "runId": "0e584751-5c65-4b0e-93db-963ce688bbeb",
+      "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+      "revision": "af2e43882b548f6ac65c75b0db1e93345f16eaf1"
+    },
+    "reviewFeedback": null,
+    "failure": null
+  },
+  "runs": [
+    {
+      "manifest": {
+        "contract": 1,
+        "runId": "26b61627-3346-4bea-a61c-918cc997fec6",
+        "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+        "milestone": "M01",
+        "acIds": [
+          "AC-F001-001"
+        ],
+        "passed": true,
+        "gates": [
+          {
+            "gate": "static",
+            "passed": true
+          },
+          {
+            "gate": "unit",
+            "passed": true
+          },
+          {
+            "gate": "review",
+            "passed": true
+          },
+          {
+            "gate": "build",
+            "passed": true
+          },
+          {
+            "gate": "e2e",
+            "passed": true
+          }
+        ],
+        "evidence": [
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "M01",
+            "verification": "e2e",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/26b61627-3346-4bea-a61c-918cc997fec6/examplemod-item-assert.json"
+            ]
+          },
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "M01",
+            "verification": "persistence",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/26b61627-3346-4bea-a61c-918cc997fec6/examplemod-item-assert.json"
+            ]
+          }
+        ],
+        "failure": null
+      },
+      "afterRestart": {
+        "contract": 1,
+        "scenarioId": "examplemod-item",
+        "runId": "26b61627-3346-4bea-a61c-918cc997fec6",
+        "stage": "assert",
+        "passed": true,
+        "assertions": [
+          {
+            "name": "registered examplemod item count",
+            "passed": true,
+            "observed": "1"
+          }
+        ],
+        "screenshots": [],
+        "persistence": {
+          "worldId": "dedicated-examplemod-world",
+          "saved": false,
+          "reloaded": true
+        },
+        "multiplayer": null
+      },
+      "logScan": {
+        "passed": true,
+        "findings": []
+      }
+    },
+    {
+      "manifest": {
+        "contract": 1,
+        "runId": "38cc3ce5-e417-42b6-a398-9386d50b8b1d",
+        "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+        "milestone": "M01",
+        "acIds": [
+          "AC-F001-001"
+        ],
+        "passed": true,
+        "gates": [
+          {
+            "gate": "static",
+            "passed": true
+          },
+          {
+            "gate": "unit",
+            "passed": true
+          },
+          {
+            "gate": "review",
+            "passed": true
+          },
+          {
+            "gate": "build",
+            "passed": true
+          },
+          {
+            "gate": "e2e",
+            "passed": true
+          }
+        ],
+        "evidence": [
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "M01",
+            "verification": "e2e",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/38cc3ce5-e417-42b6-a398-9386d50b8b1d/examplemod-item-assert.json"
+            ]
+          },
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "M01",
+            "verification": "persistence",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/38cc3ce5-e417-42b6-a398-9386d50b8b1d/examplemod-item-assert.json"
+            ]
+          }
+        ],
+        "failure": null
+      },
+      "afterRestart": {
+        "contract": 1,
+        "scenarioId": "examplemod-item",
+        "runId": "38cc3ce5-e417-42b6-a398-9386d50b8b1d",
+        "stage": "assert",
+        "passed": true,
+        "assertions": [
+          {
+            "name": "exactly one examplemod:example_item after restart",
+            "passed": true,
+            "observed": "1"
+          }
+        ],
+        "screenshots": [],
+        "persistence": {
+          "worldId": "dedicated-examplemod-world",
+          "saved": false,
+          "reloaded": true
+        },
+        "multiplayer": null
+      },
+      "logScan": {
+        "passed": true,
+        "findings": []
+      }
+    },
+    {
+      "manifest": {
+        "contract": 1,
+        "runId": "02885c51-a1ce-4be8-8d22-75ff0f06435a",
+        "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+        "milestone": "regression",
+        "acIds": [
+          "AC-F001-001"
+        ],
+        "passed": true,
+        "gates": [
+          {
+            "gate": "static",
+            "passed": true
+          },
+          {
+            "gate": "unit",
+            "passed": true
+          },
+          {
+            "gate": "build",
+            "passed": true
+          },
+          {
+            "gate": "e2e",
+            "passed": true
+          }
+        ],
+        "evidence": [
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "regression",
+            "verification": "e2e",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/02885c51-a1ce-4be8-8d22-75ff0f06435a/examplemod-item-assert.json"
+            ]
+          },
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "regression",
+            "verification": "persistence",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/02885c51-a1ce-4be8-8d22-75ff0f06435a/examplemod-item-assert.json"
+            ]
+          }
+        ],
+        "failure": null
+      },
+      "afterRestart": {
+        "contract": 1,
+        "scenarioId": "examplemod-item",
+        "runId": "02885c51-a1ce-4be8-8d22-75ff0f06435a",
+        "stage": "assert",
+        "passed": true,
+        "assertions": [
+          {
+            "name": "exactly one examplemod:example_item after restart",
+            "passed": true,
+            "observed": "1"
+          }
+        ],
+        "screenshots": [],
+        "persistence": {
+          "worldId": "dedicated-examplemod-world",
+          "saved": false,
+          "reloaded": true
+        },
+        "multiplayer": null
+      },
+      "logScan": {
+        "passed": true,
+        "findings": []
+      }
+    },
+    {
+      "manifest": {
+        "contract": 1,
+        "runId": "0e584751-5c65-4b0e-93db-963ce688bbeb",
+        "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+        "milestone": "regression",
+        "acIds": [
+          "AC-F001-001"
+        ],
+        "passed": true,
+        "gates": [
+          {
+            "gate": "static",
+            "passed": true
+          },
+          {
+            "gate": "unit",
+            "passed": true
+          },
+          {
+            "gate": "build",
+            "passed": true
+          },
+          {
+            "gate": "e2e",
+            "passed": true
+          }
+        ],
+        "evidence": [
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "regression",
+            "verification": "e2e",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/0e584751-5c65-4b0e-93db-963ce688bbeb/examplemod-item-assert.json"
+            ]
+          },
+          {
+            "acId": "AC-F001-001",
+            "specHash": "sha256:9b72932a86be7cc96396e63710033d5b26c304d5ebfeda74601214fdcb3ec803",
+            "milestone": "regression",
+            "verification": "persistence",
+            "result": "passed",
+            "artifacts": [
+              ".harness-state/evidence/0e584751-5c65-4b0e-93db-963ce688bbeb/examplemod-item-assert.json"
+            ]
+          }
+        ],
+        "failure": null
+      },
+      "afterRestart": {
+        "contract": 1,
+        "scenarioId": "examplemod-item",
+        "runId": "0e584751-5c65-4b0e-93db-963ce688bbeb",
+        "stage": "assert",
+        "passed": true,
+        "assertions": [
+          {
+            "name": "exactly one examplemod:example_item after restart",
+            "passed": true,
+            "observed": "1"
+          }
+        ],
+        "screenshots": [],
+        "persistence": {
+          "worldId": "dedicated-examplemod-world",
+          "saved": false,
+          "reloaded": true
+        },
+        "multiplayer": null
+      },
+      "logScan": {
+        "passed": true,
+        "findings": []
+      }
+    }
+  ],
+  "coreTests": {
+    "passed": 58,
+    "failed": 0,
+    "skipped": 0
+  },
+  "liveUnverified": [
+    "visual Claude image judgment",
+    "two-client multiplayer",
+    "real GameTest JUnit mapping",
+    "Codex chat/spec-edit",
+    "Linux runtime",
+    "Windows (unsupported)"
+  ]
+}
