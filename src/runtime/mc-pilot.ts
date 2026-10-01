@@ -16,6 +16,7 @@ export class McPilot {
   private server: ChildProcessWithoutNullStreams | null = null;
   private serverDone: Promise<void> | null = null;
   private ownedClients = new Set<string>();
+  private readonly worldName = 'harness-superflat';
   private generation = '';
   private sequence = 0;
   private logOffsets = new Map<string, number>();
@@ -70,6 +71,9 @@ export class McPilot {
     }
     if (!this.config.deploy.length) throw new Error('Runtime needs explicit current-build deployment mappings');
     await mkdir(this.evidence, { recursive: true });
+    await save(path.join(directory, 'server.properties'), properties
+      .replace(/^[ \t]*(?:level-name|level-type|generator-settings)(?:[ \t]*[=:]|[ \t]+).*$/gm, '')
+      .trimEnd() + `\nlevel-name=${this.worldName}\nlevel-type=minecraft:flat\ngenerator-settings={"biome":"minecraft:plains","layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}]}\n`);
     const child = spawn(server.command[0]!, server.command.slice(1), { cwd: directory, env: process.env, stdio: 'pipe', shell: false });
     this.server = child;
     let text = '';
@@ -107,7 +111,7 @@ export class McPilot {
       if (ready.connected !== true || ready.inWorld !== true) throw new Error(`Client ${name} did not join a world`);
     }
     this.generation = randomUUID();
-    await save(path.join(this.evidence, `runtime-start-${this.generation}.json`), { generation: this.generation, pid: child.pid, clients: this.config.clients });
+    await save(path.join(this.evidence, `runtime-start-${this.generation}.json`), { generation: this.generation, pid: child.pid, clients: this.config.clients, world: this.worldName });
     return this.generation;
   }
 

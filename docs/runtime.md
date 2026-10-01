@@ -34,6 +34,8 @@ deploy は build 完了後、runtime 起動前だけに行います。source は
 
 停止は server stdin の stop による保存・client 切断を先に行い、その後 MC Pilot の client stop で client process を終了します。30 秒以内に終了しない専用 server は kill して run を失敗扱いにします。Persistence は同じ world を保持してこの lifecycle をもう一度実行します。runtime log と設定された client logs の当該 run 中の追加分を検査し、エラーがあれば checkpoint しません。
 
+検査用 world はスーパーフラット固定です。Harness が server.properties を設定し、同一実装プロジェクトでは専用 world `harness-superflat` を milestone・再検証・regression・process restart をまたいで使い回します。
+
 2026-10-01 に、参考リポジトリ内の MC Pilot 0.16.0 の実 --help、up/down/client list/server list と実装を確認しました。MC Pilot 0.16.0 の up は標準 server manager 用で、NeoForge installer を提供しないため、この Harness は明示された Java argv で専用 NeoForge server を管理します。実 client 起動・停止は MC Pilot に委譲します。
 
 参照: [MC Pilot upstream](https://github.com/kzheart/mc-pilot)、[NeoForge setup](https://docs.neoforged.net/docs/1.21.1/gettingstarted/)、[提供された参考実装](https://github.com/lau-mods/modding-harness-1.21.1/tree/orchestration)。Codex 引数は installed exec --help、[公式 CLI documentation](https://learn.chatgpt.com/docs/developer-commands?surface=cli)、Claude 引数は installed --help で確認しました。これらの CLI 契約確認と、実 Minecraft E2E 成功は別の検証です。

@@ -29,3 +29,24 @@ test('unexpected server exit makes runtime fail even when clients report stop su
  try {await pilot.start();await new Promise(resolve=>setTimeout(resolve,400));}
  finally {await assert.rejects(pilot.stop(),/shutdown|exited/);}
 });
+test('runtime reuses the project superflat world across runs and restarts',async t=>{
+ const {root,config}=await fixture(t),server=config.runtime.server.directory;
+ await put(root,server+'/server.properties','server-ip=127.0.0.1\nserver-port=25575\nlevel-name=world\nlevel-type=minecraft:normal\ngenerator-settings={"biome":"minecraft:desert"}\n');
+ await put(root,server+'/world/saved.txt','existing world');
+ const properties=async()=>Object.fromEntries((await readFile(path.join(root,server,'server.properties'),'utf8')).split('\n').filter(line=>line.includes('=')).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
+ for(const run of ['first','second']) {
+  const dir=path.join(root,'.harness-state/evidence',run),pilot=new McPilot(root,config.runtime,dir);
+  try {
+   const first=await pilot.start(),initial=await properties(),world=initial['level-name'];
+   assert.equal(world,'harness-superflat');assert.equal(initial['level-type'],'minecraft:flat');
+   assert.deepEqual(JSON.parse(initial['generator-settings']),{biome:'minecraft:plains',layers:[{block:'minecraft:bedrock',height:1},{block:'minecraft:dirt',height:2},{block:'minecraft:grass_block',height:1}]});
+   if(run==='first')await put(root,`${server}/${world}/saved.txt`,'persisted');
+   else assert.equal(await readFile(path.join(root,server,world,'saved.txt'),'utf8'),'persisted');
+   await pilot.stop();
+   const second=await pilot.start();assert.notEqual(first,second);assert.equal((await properties())['level-name'],world);
+   assert.equal(await readFile(path.join(root,server,world,'saved.txt'),'utf8'),'persisted');
+   for(const generation of [first,second])assert.equal(JSON.parse(await readFile(path.join(dir,`runtime-start-${generation}.json`),'utf8')).world,world);
+  } finally {await pilot.stop();}
+ }
+ assert.equal(await readFile(path.join(root,server,'world/saved.txt'),'utf8'),'existing world');
+});

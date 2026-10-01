@@ -1128,6 +1128,8 @@ Implementation Agentが自由にclientを起動できないようにしてくだ
 
 runtime起動はHarnessが必要verificationから判断します。
 
+MC Pilotの検査用worldはスーパーフラット固定とし、同一実装プロジェクトではmilestone・再検証・regression・process restartをまたいで同じworldを使い回してください。
+
 Milestone planning時にもMinecraft起動コストを考慮してください。
 
 通常milestoneについて、
