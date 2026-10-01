@@ -14,7 +14,7 @@ import { invalidate, loadState, saveState, withLock } from '../state/state.js';
 import { chatProject, developProject, planProject, regressionProject } from '../workflow.js';
 
 const descriptions: Record<string, string> = {
-  create: 'harness create <directory> --template-repo <repo> --template-ref <revision> [--harness-repo <repo>]',
+  create: 'harness create <directory> --template-repo <repo> --template-ref <revision>',
   init: 'harness init [--project <directory>]\nInstall the project contract without overwriting specification/config.',
   doctor: 'harness doctor [--project <directory>]\nDiagnose external CLI availability and required flags.',
   validate: 'harness validate [--project <directory>] [--refresh-projections]\nValidate contract, specification, generated views and state. Refresh is explicit regeneration after manual spec edits.',
@@ -28,7 +28,7 @@ const descriptions: Record<string, string> = {
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
     help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' }, project: { type: 'string' },
-    'template-repo': { type: 'string' }, 'template-ref': { type: 'string' }, 'harness-repo': { type: 'string' },
+    'template-repo': { type: 'string' }, 'template-ref': { type: 'string' },
     'refresh-projections': { type: 'boolean' },
     reference: { type: 'string', multiple: true },
   } });
@@ -43,7 +43,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   switch (command) {
     case 'create': {
       if (rest.length !== 1 || !values['template-repo'] || !values['template-ref']) throw new Error(descriptions.create);
-      await createProject(path.resolve(rest[0]!), values['template-repo'], values['template-ref'], values['harness-repo']);
+      await createProject(path.resolve(rest[0]!), values['template-repo'], values['template-ref']);
       console.log('Created independent project. Review PROJECT.md and commit the bootstrap files before development.'); break;
     }
     case 'init': await initProject(root); console.log('Initialized. Review PROJECT.md/config and commit the bootstrap files before development.'); break;

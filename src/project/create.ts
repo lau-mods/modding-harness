@@ -1,25 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile, chmod, realpath } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exists, safePath } from '../io.js';
-import { harnessRoot } from '../schema.js';
 import { success } from '../process.js';
 import { gitProcess } from '../git/git.js';
 import { initProject } from './project.js';
 
-export async function createProject(destination: string, templateRepo: string, templateRef: string, harnessRepo?: string): Promise<void> {
+export async function createProject(destination: string, templateRepo: string, templateRef: string): Promise<void> {
   if (await exists(destination)) throw new Error(`Destination already exists: ${destination}`);
-  if (templateRepo.startsWith('-') || templateRef.startsWith('-') || harnessRepo?.startsWith('-')) throw new Error('Repository/ref must not begin with -');
+  if (templateRepo.startsWith('-') || templateRef.startsWith('-')) throw new Error('Repository/ref must not begin with -');
   if (templateRepo.startsWith('./') || templateRepo.startsWith('../')) templateRepo = path.resolve(templateRepo);
-  if (harnessRepo?.startsWith('./') || harnessRepo?.startsWith('../')) harnessRepo = path.resolve(harnessRepo);
-  if (!harnessRepo) {
-    const top = await gitProcess(harnessRoot, ['rev-parse', '--show-toplevel']);
-    if (top.code !== 0 || await realpath(top.stdout.trim()) !== await realpath(harnessRoot)) throw new Error('Installed package is not the Harness Git root; pass --harness-repo');
-    const result = await gitProcess(harnessRoot, ['remote', 'get-url', '--all', 'origin']);
-    const urls = result.stdout.trim().split('\n').filter(Boolean);
-    if (result.code !== 0 || urls.length !== 1) throw new Error('Harness origin is not unambiguous; pass --harness-repo');
-    harnessRepo = urls[0]!;
-  }
   const temporary = await mkdtemp(path.join(tmpdir(), 'harness-create-'));
   try {
     const repo = path.join(temporary, 'template');
@@ -50,8 +40,7 @@ export async function createProject(destination: string, templateRepo: string, t
       await chmod(target, mode === '100755' ? 0o755 : 0o644);
     }
     success(await gitProcess(destination, ['init']), 'Independent Git repository');
-    const local = harnessRepo.startsWith('/') || harnessRepo.startsWith('./') || harnessRepo.startsWith('../');
-    success(await gitProcess(destination, [...(local ? ['-c', 'protocol.file.allow=always'] : []), 'submodule', 'add', '--', harnessRepo, '.harness']), 'Harness submodule');
+    success(await gitProcess(destination, ['submodule', 'add', '--', 'https://github.com/lau-mods/modding-harness.git', '.harness']), 'Harness submodule');
     await initProject(destination);
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }

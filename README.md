@@ -5,6 +5,8 @@ NeoForge プロジェクトへ `.harness` Git submodule として導入する、
 Node.js 20 以上、npm、Git、プロジェクトに適合する Java と Gradle wrapper を使用します。実装／計画／仕様編集には Codex CLI、独立レビューと画像レビューには Claude Code、実 client 操作には MC Pilot を使用します。モデルは integration config の `model: null` で CLI/account default、明示設定で変更できます。
 
 ```sh
+git clone https://github.com/lau-mods/modding-harness.git
+cd modding-harness
 npm ci
 npm run build
 npm link
@@ -16,16 +18,16 @@ package binary は `harness` です。npm package をインストールして使
 ## 新規プロジェクト
 
 ```sh
-harness create ./my-mod --template-repo <NeoForge-repository> --template-ref <commit-or-ref> --harness-repo <this-repository>
+harness create ./my-mod --template-repo <NeoForge-repository> --template-ref <commit-or-ref>
 cd my-mod
 ```
 
-指定 ref のファイルを、新しい独立 Git repository に materialize し、`.harness` submodule と Project Contract を導入します。テンプレートの Git 履歴は継承しません。Harness の origin が一意に取得できる場合は `--harness-repo` を省略できます。create だけは、明示された template と Harness を取得する clone/submodule add を行います。通常 workflow は remote Git 操作を一切行いません。push、reset、clean、stash、履歴書き換えは実装していません。
+指定 ref のファイルを、新しい独立 Git repository に materialize し、この Harness を `.harness` submodule として導入します。テンプレートの Git 履歴は継承しません。create だけは template と Harness を取得する clone/submodule add を行います。通常 workflow は remote Git 操作を一切行いません。push、reset、clean、stash、履歴書き換えは実装していません。
 
 ## 既存プロジェクト
 
 ```sh
-git submodule add <this-repository> .harness
+git submodule add https://github.com/lau-mods/modding-harness.git .harness
 npm --prefix .harness ci
 npm --prefix .harness run build
 node .harness/dist/cli/main.js init

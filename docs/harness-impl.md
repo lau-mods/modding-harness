@@ -686,8 +686,6 @@ harness create ./my-mod \
   --template-ref <revision>
 ```
 
-Harness repository自身のremote originからsubmodule URLを一意に取得できない場合だけ、明示的な `--harness-repo` を要求して構いません。
-
 推測fallbackは行わないでください。
 
 NeoForge template側の `.git` historyをそのままproject repositoryとして利用せず、独立したGit repositoryへmaterializeしてください。

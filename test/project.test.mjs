@@ -78,16 +78,24 @@ test('create materializes specified ref into independent history and adds submod
  git(root,'add','gradle/wrapper/gradle-wrapper.jar');
  await rm(path.join(root,'.gitmodules'));git(root,'commit','-m','External template fixture');
  const ref=git(root,'rev-parse','HEAD');
- await createProject(dest,root,ref,path.join(base,'harness'));
+ // Resolve the fixed repository to a local fixture without changing user Git config.
+ const repository='https://github.com/lau-mods/modding-harness.git';
+ const env={GIT_CONFIG_COUNT:'2',GIT_CONFIG_KEY_0:`url.${path.join(base,'harness')}.insteadOf`,GIT_CONFIG_VALUE_0:repository,GIT_CONFIG_KEY_1:'protocol.file.allow',GIT_CONFIG_VALUE_1:'always'};
+ const previous=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));
+ t.after(()=>{for(const [key,value]of Object.entries(previous)){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
+ Object.assign(process.env,env);
+ await createProject(dest,root,ref);
  assert.equal(await readFile(path.join(dest,'PROJECT.md'),'utf8'),specText());
  assert.deepEqual(await readFile(path.join(dest,'gradle/wrapper/gradle-wrapper.jar')),binary);
  assert.match(git(dest,'ls-files','--stage','.harness'),/^160000/);
  assert.throws(()=>git(dest,'rev-parse','--verify','HEAD'));
  assert.equal(git(dest,'remote'), '');
+ assert.equal(git(dest,'config','--file','.gitmodules','--get','submodule..harness.url'),repository);
+ assert.equal(git(path.join(dest,'.harness'),'rev-parse','HEAD'),git(path.join(base,'harness'),'rev-parse','HEAD'));
  git(root,'branch','non-default-template',ref);
  const other=path.join(base,'created-from-branch');
- await createProject(other,root,'non-default-template',path.relative(process.cwd(),path.join(base,'harness')));
+ await createProject(other,path.relative(process.cwd(),root),'non-default-template');
  assert.equal(await readFile(path.join(other,'PROJECT.md'),'utf8'),specText());
  git(root,'tag','non-default-template',ref);
- await assert.rejects(createProject(path.join(base,'ambiguous'),root,'non-default-template',path.join(base,'harness')),/ambiguous/);
+ await assert.rejects(createProject(path.join(base,'ambiguous'),root,'non-default-template'),/ambiguous/);
 });
