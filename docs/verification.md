@@ -70,4 +70,4 @@ multiplayer では `multiplayer:{actorClient:"client-a",observerClient:"client-b
 
 E2E は `ScenarioError` の場合だけ修正へ戻し、それ以外は E2E だけを同一実行内で一度再試行します。再試行の証跡は同じ run の `e2e-retry/`、各試行の失敗理由は `e2e-failure.json` に残します。再試行も失敗した場合は、既存の検証済み AC を修正対象に戻さず停止します。停止後の部分 resume は行いません。
 
-runtime logs の ERROR/FATAL、Exception、missing texture/model、load failure は停止理由です。実行結果が変わらないようにするため、AI reviewer に log failure の免除権限は与えません。resource validator は JSON syntax、重複パス、不正 asset path、既知ローカル model/texture reference を検査します。外部 namespace や Minecraft resource loader の意味論までは検証しません。
+runtime logs も、この Mod が追加・変更した処理のみを検査対象にします。スタックトレースを含むログ単位で、PROJECT.md の Mod ID または src/main の Java/Kotlin クラス名（完全名・NeoForge の省略名）を含む ERROR/FATAL レベル、Exception、OutOfMemoryError、missing texture/model、load failure を停止理由にします。Minecraft/NeoForge/依存 Mod のログや発生元不明のログで、対象 Mod の識別子を含まないものは `log-scan.json` の `excluded` に保存し、不合格の理由にしません。これは識別子に基づく判定であり、独自 logger 名など識別子のないエラーは対象外になります。起動・接続・シナリオ・正常終了の失敗は引き続き停止理由です。AI reviewer に判定の免除権限は与えません。resource validator は JSON syntax、重複パス、不正 asset path、既知ローカル model/texture reference を検査します。外部 namespace や Minecraft resource loader の意味論までは検証しません。

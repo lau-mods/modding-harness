@@ -39,7 +39,7 @@ Minecraft server の eula.txt は利用者が同意済みである必要があ�
 
 deploy は build 完了後、runtime 起動前だけに行います。source は今回の build output、target は専用 runtime 内です。Mod が server/client にロードされたことは scenario の machine assertions でも検査してください。シナリオは `HARNESS_MCT_COMMAND` と `HARNESS_CLIENTS` を利用し、mct 呼び出しの success envelope と内部 action success の両方を確認してください。
 
-停止は server stdin の stop による保存・client 切断を先に行い、その後 MC Pilot の client stop で client process を終了します。30 秒以内に終了しない専用 server は kill して run を失敗扱いにします。Persistence は同じ world を保持してこの lifecycle をもう一度実行します。runtime log と設定された client logs の当該 run 中の追加分を検査し、エラーがあれば checkpoint しません。
+停止は server stdin の stop による保存・client 切断を先に行い、その後 MC Pilot の client stop で client process を終了します。30 秒以内に終了しない専用 server は kill して run を失敗扱いにします。Persistence は同じ world を保持してこの lifecycle をもう一度実行します。runtime log と設定された client logs の当該 run 中の追加分を検査し、実装中 Mod に関連するエラーがあれば checkpoint しません。ログの対象判定は [検証 contract](verification.md) に従います。
 
 検査用 world はスーパーフラット固定です。Harness が server.properties を設定し、同一実装プロジェクトでは専用 world `harness-superflat` を milestone・再検証・process restart をまたいで使い回します。
 

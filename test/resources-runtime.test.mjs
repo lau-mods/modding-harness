@@ -17,10 +17,10 @@ test('resource JSON, duplicate identifiers, invalid asset paths and local refere
  await assert.rejects(validateResources(root),/Duplicate resource/);
 });
 test('runtime log errors fail and historical client errors are excluded by offset',async t=>{
- const {root,config}=await fixture(t);const log='.harness-state/runtime/client.log';await put(root,log,'old ERROR should not affect a new run\n');
+ const {root,config}=await fixture(t);const log='.harness-state/runtime/client.log';await put(root,log,'old ERROR examplemod should not affect a new run\n');
  config.runtime.logs=[log];const dir=path.join(root,'.harness-state/evidence/log-test');const pilot=new McPilot(root,config.runtime,dir);
  await pilot.start();await pilot.stop();await pilot.scanLogs();
- await put(root,'.harness-state/evidence/log-test/runtime.log',(await readFile(path.join(dir,'runtime.log'),'utf8'))+'new ERROR failure\n');
+ await put(root,'.harness-state/evidence/log-test/runtime.log',(await readFile(path.join(dir,'runtime.log'),'utf8'))+'new ERROR examplemod failure\n');
  await assert.rejects(pilot.scanLogs(),/log scan found/);
 });
 test('unexpected server exit makes runtime fail even when clients report stop success',async t=>{

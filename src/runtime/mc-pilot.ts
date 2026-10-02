@@ -4,7 +4,7 @@ import { appendFile, copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { exists, readJson, safePath, save } from '../io.js';
+import { exists, readJson, safePath, save, walk } from '../io.js';
 import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
 import type { Config } from '../project/config.js';
@@ -176,17 +176,41 @@ export class McPilot {
   }
 
   async scanLogs(): Promise<void> {
+    const project = await readFile(path.join(this.root, 'PROJECT.md'), 'utf8');
+    const modId = project.match(/^Mod ID:[ \t]*([a-z][a-z0-9_]*)[ \t]*$/m)?.[1];
+    if (!modId) throw new Error('Log inspection requires a concrete Mod ID in PROJECT.md');
+    const owners = new Set([modId]);
+    const sourceRoot = path.join(this.root, 'src/main');
+    for (const file of await walk(sourceRoot)) {
+      if (!/\.(?:java|kt)$/.test(file)) continue;
+      const source = await readFile(path.join(sourceRoot, file), 'utf8');
+      const packageName = source.match(/^[ \t]*package\s+([\w.]+)/m)?.[1];
+      if (!packageName) continue;
+      for (const declaration of source.matchAll(/\b(?:class|interface|enum|record|object)\s+(\w+)/g)) {
+        owners.add(`${packageName}.${declaration[1]}`);
+        // NeoForge console logs abbreviate package components to two characters.
+        owners.add(`${packageName.split('.').map(part => part.slice(0, 2)).join('.')}.${declaration[1]}`);
+      }
+    }
+    const owned = new RegExp(`(?<![\\w$])(?:${[...owners].map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w])`);
     const files = new Map([[path.join(this.evidence, 'runtime.log'), 0], ...this.logOffsets]);
     const findings: { file: string; line: string }[] = [];
+    const excluded: { file: string; line: string }[] = [];
     for (const [index, [file, offset]] of [...files].entries()) {
       if (!await exists(file)) throw new Error(`Missing runtime log: ${file}`);
       const bytes = await readFile(file);
       if (bytes.length < offset) throw new Error(`Runtime log rotated during run: ${file}`);
       const text = bytes.subarray(offset).toString('utf8');
       if (offset || file !== path.join(this.evidence, 'runtime.log')) await save(path.join(this.evidence, `client-log-${index}-${path.basename(file)}`), text);
-      for (const line of text.split('\n')) if (/\b(?:ERROR|FATAL)\b|\w+Exception\b|missing (?:texture|model)|unable to load|failed to load/i.test(line)) findings.push({ file, line });
+      // Keep stack traces with their log entry so framework loggers can still identify our code.
+      for (const line of text.split(/(?=^(?:\[[^\]\r\n]+\][ \t]*)?\[(?:[^\]\r\n]*\/)?(?:TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\])/m)) {
+        const level = line.match(/\[(?:[^\]\r\n]*\/)?(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\]/)?.[1];
+        if ((level ? /^(?:ERROR|FATAL)$/.test(level) : /\b(?:ERROR|FATAL)\b/i.test(line)) || /\w+Exception\b|OutOfMemoryError|missing (?:texture|model)|unable to load|failed to load/i.test(line)) {
+          (owned.test(line) ? findings : excluded).push({ file, line: line.trimEnd() });
+        }
+      }
     }
-    await save(path.join(this.evidence, 'log-scan.json'), { passed: findings.length === 0, findings });
+    await save(path.join(this.evidence, 'log-scan.json'), { passed: findings.length === 0, modId, findings, excluded });
     if (findings.length) throw new Error(`Runtime log scan found ${findings.length} error(s)`);
   }
 }
