@@ -14,7 +14,7 @@ import { parseProject, requireActionable } from './spec/parser.js';
 import type { ProjectSpec } from './spec/parser.js';
 import { diffSpec } from './spec/diff.js';
 import { agentContext, materialize } from './spec/projector.js';
-import { invalidate, loadState, newState, saveState, withLock } from './state/state.js';
+import { invalidate, loadState, newState, requireMutablePlan, saveState, withLock } from './state/state.js';
 import type { Phase, State } from './state/state.js';
 import { verify } from './verification/verify.js';
 import type { VerificationRun } from './verification/verify.js';
@@ -35,6 +35,7 @@ async function openWorkflow(root: string): Promise<{ config: Config; spec: Proje
   const revision = await head(root);
   const state = await loadState(root) ?? newState(spec, revision);
   if (state.revision !== revision) {
+    requireMutablePlan(state);
     // Any out-of-band committed source change invalidates completion. Historical checkpoints stay intact.
     for (const ac of Object.values(state.acs)) { ac.status = 'pending'; ac.runId = null; ac.checkpoint = null; }
     state.revision = revision; state.planFile = null; state.phase = 'idle'; state.activeMilestone = null; state.reviewFeedback = null; state.failure = null;
@@ -52,6 +53,7 @@ async function fail(root: string, state: State, error: unknown): Promise<never> 
 }
 
 async function makePlan(root: string, config: Config, spec: ProjectSpec, state: State, runner: Runner): Promise<Plan> {
+  requireMutablePlan(state);
   requireActionable(spec);
   state.reviewFeedback = null;
   await setPhase(root, state, 'planning');
@@ -80,6 +82,7 @@ export async function chatProject(root: string, request: string, runner: Runner 
   if (!request.trim()) throw new Error('chat requires a product change request');
   return withLock(root, async () => {
     const { config, spec: before, state } = await openWorkflow(root);
+    requireMutablePlan(state);
     const references = await sourceContext(root, referenceFiles);
     for (const [file, content] of Object.entries(references)) if (content === null) throw new Error(`Missing reference source: ${file}`);
     try {
@@ -146,7 +149,7 @@ export async function developProject(root: string, runner: Runner = run): Promis
           const commit = await checkpoint(root, spec, milestone, result, candidate);
           state.checkpoints.push({ milestone: milestone.id, commit, acIds: milestone.acIds, specHash: spec.hash, runId: result.runId });
           for (const id of milestone.acIds) Object.assign(state.acs[id]!, { status: 'verified', runId: result.runId, checkpoint: commit });
-          state.revision = commit; state.activeMilestone = null; state.failure = null; state.reviewFeedback = null;
+          state.revision = commit; state.failure = null; state.reviewFeedback = null;
           await saveState(root, state);
           break;
         }

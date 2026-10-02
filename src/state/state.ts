@@ -22,7 +22,13 @@ export async function saveState(root: string, state: State): Promise<void> {
   validateSchema<State>('state', state);
   await save(path.join(root, '.harness-state/state.json'), state);
 }
+export function requireMutablePlan(state: State): void {
+  if (state.activeMilestone !== null) {
+    throw new Error('Plan is fixed after milestone implementation starts; finish the original milestones and checkpoints before changing the plan, specification, or revision');
+  }
+}
 export function invalidate(state: State, spec: ProjectSpec): void {
+  requireMutablePlan(state);
   const next = newState(spec, state.revision);
   for (const [id, ac] of Object.entries(next.acs)) {
     const old = state.acs[id];

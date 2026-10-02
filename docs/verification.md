@@ -4,6 +4,10 @@ milestone 検証は Static → Unit → Claude review → Build → GameTest →
 
 初回計画で作業を milestone に分割し、いずれかの milestone の実装を開始した時点で、その計画を固定します。以後は milestone の再分割・統合・追加・削除・実行順序・依存関係・対象 AC の変更を含め、計画の変更を禁止します。実装の難しさや検証の失敗を理由に再計画せず、当初の milestone ごとに全 AC の実装を揃えて検証・checkpoint します。一部だけを先行して実装・検証し、残りを後回しにしてはいけません。
 
+次の milestone の実装は現在の milestone の checkpoint 成功後に開始します。Harness の外側から操作する Agent も、失敗後の直接実装・commit・plan/state の削除や書換えでこの順序を回避してはいけません。実装途中の `plan`、仕様変更による再計画、Harness 外の commit による計画破棄は拒否し、元の計画を保持します。
+
+commit は milestone の全検証が成功した checkpoint 作成時だけ許可します。例外は初期セットアップと、ユーザー指示に起因する PROJECT.md の仕様変更 commit のみです。作業中断・検証失敗時の途中経過は、git add・commit・stash・破棄をせず、変更した作業ツリーと evidence をそのまま保持します。途中経過を例外の commit に混ぜてはいけません。外側の Agent にも同じルールを適用します。
+
 ## Unit / GameTest
 
 `.harness-config.json` の gradle task を実行し、存在を tasks --all で確認します。単一の conventional task のみを自動検出します。AC が要求する unit/GameTest は、導入先の `tests/verification.json` に新鮮な JUnit XML testcase を対応付けてください。

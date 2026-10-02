@@ -867,7 +867,7 @@ Harness workflow開始時に未コミットの利用者変更が存在する場�
 
 自動的に破棄、stash、commitしないでください。
 
-milestoneがfailureした場合、失敗したworking treeとevidenceを残してください。
+作業中断・milestone failure 時は、git add もせず、working tree と evidence をそのまま残してください。commit は検証済み milestone の checkpoint のみとし、例外は初期セットアップとユーザー指示に起因する PROJECT.md の仕様変更のみです。途中経過を例外の commit に混ぜてはいけません。
 
 ---
 
@@ -910,7 +910,7 @@ Git commitはverified checkpointです。
 
 # Spec revision commit
 
-Product Changeによって `PROJECT.md` を更新した場合は、validation成功後にmilestoneとは別のspec revision commitを作ってください。
+ユーザー指示に起因する Product Change によって `PROJECT.md` を更新した場合のみ、validation 成功後に milestone とは別の spec revision commit を作ってください。対象は `PROJECT.md` に限定し、途中の実装変更を含めてはいけません。
 
 例えば、
 

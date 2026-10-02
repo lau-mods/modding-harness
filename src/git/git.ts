@@ -25,7 +25,7 @@ export async function assertRoot(root: string): Promise<void> {
 export async function treeStatus(root: string): Promise<string> { return git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none']); }
 export async function requireClean(root: string): Promise<void> {
   const status = await treeStatus(root);
-  if (status) throw new Error(`Dirty working tree; preserve and commit/reconcile user work before starting:\n${status}`);
+  if (status) throw new Error(`Dirty working tree; preserve changes as-is without git add, commit, stash, or discard:\n${status}`);
 }
 export async function gitFiles(root: string): Promise<string[]> {
   return [...new Set((await git(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard'])).split('\0').filter(Boolean))].sort();
