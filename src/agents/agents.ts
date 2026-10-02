@@ -51,7 +51,7 @@ export async function callAgent(root: string, config: AgentConfig, role: 'spec-e
     const before = await snapshot(root);
     try {
       const args = reviewer ? claudeArgs(config.model) : codexArgs(config.model, schemaFile, output);
-      const execution = await runner(config.command, args, { cwd: dir, input, timeoutMs: 1_800_000 });
+      const execution = await runner(config.command, args, { cwd: dir, input, timeoutMs: 7_200_000 });
       processResult = execution;
       success(execution, `${role} agent`);
       result = reviewer ? parseReview(execution.stdout) : validateSchema(role, JSON.parse(await readFile(output, 'utf8')));
