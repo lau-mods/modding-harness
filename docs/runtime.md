@@ -11,8 +11,13 @@ runtime config 例（各 path と名前を実環境に合わせて確定）:
   "provider": "mc-pilot",
   "command": "mct",
   "clients": ["harness-a", "harness-b"],
+  "clientOptions": {
+    "javaCommand": "/absolute/path/to/native-java-21/bin/java",
+    "maxMemory": "3072m",
+    "earlyWindowControl": false
+  },
   "server": {
-    "command": ["java", "@libraries/net/neoforged/neoforge/<version>/unix_args.txt", "--nogui"],
+    "command": ["/absolute/path/to/native-java-21/bin/java", "-Dneoforge.readTimeout=120", "@libraries/net/neoforged/neoforge/<version>/unix_args.txt", "--nogui"],
     "directory": ".harness-state/runtime/server",
     "address": "127.0.0.1:25575"
   },
@@ -29,6 +34,8 @@ runtime config 例（各 path と名前を実環境に合わせて確定）:
 ```
 
 Minecraft server の eula.txt は利用者が同意済みである必要があります。server.properties の server-ip/server-port は上記 loopback address と一致させます。MC Pilot clients は停止済みで、対象と同じ Minecraft/NeoForge version、必要な MC Pilot mod を準備してください。`client list` で NeoForge loader と停止状態を検査し、server 起動後に `client launch NAME --server ADDRESS`、`client wait-ready NAME --timeout 120` を実行します。すでに起動した client を取り込みません。
+
+`clientOptions` は省略可能で、指定した項目だけを停止済みの全クライアントへ適用します。`javaCommand` と `maxMemory` は MC Pilot の `instance.json`、`earlyWindowControl` は `minecraft/config/fml.toml` に反映します。Apple Silicon では ARM 版 Java 21 の実際のパスを両側に指定してください。`maxMemory` は `3072m` / `3G` の形式です。サーバーの `-Dneoforge.readTimeout=120` は JVM 引数に指定します。`wait-ready --timeout 120` は Harness の参加完了待ちであり、ゲームの接続制限やヒープを変更しません。
 
 deploy は build 完了後、runtime 起動前だけに行います。source は今回の build output、target は専用 runtime 内です。Mod が server/client にロードされたことは scenario の machine assertions でも検査してください。シナリオは `HARNESS_MCT_COMMAND` と `HARNESS_CLIENTS` を利用し、mct 呼び出しの success envelope と内部 action success の両方を確認してください。
 

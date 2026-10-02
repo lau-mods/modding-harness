@@ -4,7 +4,7 @@ import { appendFile, copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { exists, safePath, save } from '../io.js';
+import { exists, readJson, safePath, save } from '../io.js';
 import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
 import type { Config } from '../project/config.js';
@@ -43,6 +43,38 @@ export class McPilot {
     } finally { await save(file, { args, output: output ?? null }); }
   }
 
+  private async configureClient(name: string): Promise<void> {
+    const options = this.config.clientOptions;
+    if (!options) return;
+    const base = `.harness-state/runtime/mct-home/clients/${name}`;
+    if (options.javaCommand !== undefined || options.maxMemory !== undefined) {
+      const file = await safePath(this.root, `${base}/instance.json`);
+      const meta = await readJson(file) as { launchArgs?: string[]; javaCommand?: string };
+      if (!meta || !Array.isArray(meta.launchArgs) || !meta.launchArgs.every(arg => typeof arg === 'string')) throw new Error(`Client ${name} has invalid launchArgs`);
+      const args: string[] = [];
+      for (let i = 0; i < meta.launchArgs.length; i++) {
+        const arg = meta.launchArgs[i]!;
+        const replaced = (options.maxMemory !== undefined && (arg === '--max-mem' || arg.startsWith('--max-mem='))) ||
+          (options.javaCommand !== undefined && (arg === '--java' || arg.startsWith('--java=')));
+        if (replaced) { if (!arg.includes('=')) i++; }
+        else args.push(arg);
+      }
+      if (options.maxMemory !== undefined) args.push('--max-mem', options.maxMemory);
+      if (options.javaCommand !== undefined) meta.javaCommand = options.javaCommand;
+      meta.launchArgs = args;
+      await save(file, meta);
+    }
+    if (options.earlyWindowControl !== undefined) {
+      const file = await safePath(this.root, `${base}/minecraft/config/fml.toml`);
+      const text = await exists(file) ? await readFile(file, 'utf8') : '';
+      // This FML setting is a root TOML key; do not append it inside an existing table.
+      const table = text.search(/^\s*\[/m), end = table < 0 ? text.length : table;
+      const root = text.slice(0, end), key = /^[ \t]*earlyWindowControl[ \t]*=.*$/gm;
+      const setting = `earlyWindowControl=${options.earlyWindowControl}`;
+      await save(file, (key.test(root) ? root.replace(key, setting) : `${setting}\n${root}`) + text.slice(end));
+    }
+  }
+
   async start(): Promise<string> {
     const server = this.config.server;
     if (!server || !this.config.clients.length) throw new Error('Runtime not configured: prepare a dedicated NeoForge server and MC Pilot clients; see docs/runtime.md');
@@ -64,6 +96,7 @@ export class McPilot {
       const client = listed.clients?.find(client => client.name === name);
       if (!client || client.running || client.loader !== 'neoforge') throw new Error(`Client ${name} must be a stopped, prepared NeoForge instance`);
     }
+    for (const name of this.config.clients) await this.configureClient(name);
     for (const entry of this.config.deploy) {
       if (!entry.target.startsWith('.harness-state/runtime/')) throw new Error(`Deployment must target dedicated runtime: ${entry.target}`);
       const source = await safePath(this.root, entry.source), target = await safePath(this.root, entry.target);
