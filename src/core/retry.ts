@@ -1,4 +1,4 @@
-import type { ExecutionFailure } from './errors.js';
+import { ExecutionFailure, RetryExhausted } from './errors.js';
 
 // 同一処理の最大実行回数 (§17)
 export const MAX_ATTEMPTS = 3;
@@ -9,7 +9,16 @@ export type RetryHooks = {
   onFailure?: (attempt: number, failure: ExecutionFailure) => Promise<void>;
 };
 
-// ExecutionFailure の間は同一状態のまま最大 3 回実行し、尽きたら RetryExhausted を投げる。他の例外は即座に伝播する (§17)
+// ExecutionFailure の間は同一状態のまま最大 3 回実行し、尽きたら RetryExhausted を投げる。他の例外はそのまま伝播する (§17)
 export async function withRetry<T>(operation: string, action: (attempt: number) => Promise<T>, hooks?: RetryHooks): Promise<T> {
-  throw new Error('Not implemented');
+  for (let attempt = 1; ; attempt++) {
+    await hooks?.onAttempt?.(attempt);
+    try {
+      return await action(attempt);
+    } catch (error) {
+      if (!(error instanceof ExecutionFailure)) throw error;
+      await hooks?.onFailure?.(attempt, error);
+      if (attempt >= MAX_ATTEMPTS) throw new RetryExhausted(operation, attempt, error);
+    }
+  }
 }

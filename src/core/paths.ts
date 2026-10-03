@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // project 内で Harness が管理する状態ディレクトリ (gitignore 対象)
 export const STATE_DIR = '.harness-state';
 
@@ -10,20 +13,25 @@ export type ProjectPaths = {
   plan: string; // 実装計画
   lock: string; // 多重実行防止
   runs: string; // 実行記録 (§29)
-  milestones: string; // milestone 単位の一時成果物
+  runtime: string; // Minecraft 実機環境 (server・MC Pilot home・配置記録)
 };
 
 // project root から ProjectPaths を組み立てる
 export function projectPaths(root: string): ProjectPaths {
-  throw new Error('Not implemented');
-}
-
-// milestone の一時成果物 (E2E 結果・screenshot・review 記録) のディレクトリ。rollback で初期化する (§18)
-export function milestoneDir(root: string, milestone: string): string {
-  throw new Error('Not implemented');
+  const state = path.join(root, STATE_DIR);
+  return {
+    root,
+    spec: path.join(root, 'PROJECT.md'),
+    config: path.join(root, '.harness-config.json'),
+    state: path.join(state, 'state.json'),
+    plan: path.join(state, 'plan.json'),
+    lock: path.join(state, 'lock'),
+    runs: path.join(state, 'runs'),
+    runtime: path.join(state, 'runtime'),
+  };
 }
 
 // Harness 本体のインストールディレクトリ。templates の参照元であり改変検出の対象 (§20)
 export function harnessRoot(): string {
-  throw new Error('Not implemented');
+  return fileURLToPath(new URL('../../', import.meta.url));
 }

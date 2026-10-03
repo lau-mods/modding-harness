@@ -5,7 +5,7 @@ export type IssueKind = 'code' | 'visual';
 export type IssueStatus = 'unresolved' | 'resolved' | 'accepted';
 
 // 初回レビューで Claude が返す 1 件の指摘 (ID 付与前)
-export type ReviewFinding = { title: string; detail: string; file?: string; line?: number };
+export type ReviewFinding = { title: string; detail: string; file: string | null; line: number | null };
 
 // 指摘の状態変化の履歴 (§29 各指摘の現在状態)
 export type IssueEvent = { round: number; status: IssueStatus; by: 'claude' | 'codex'; note: string; at: string };
@@ -24,30 +24,51 @@ export type IssueSet = { kind: IssueKind; milestone: string; round: number; sess
 
 // 初回レビューの指摘に ID を付与し、指摘集合として固定する (§10, §15)
 export function createIssueSet(kind: IssueKind, milestone: string, findings: ReviewFinding[], sessionId: string | null): IssueSet {
-  throw new Error('Not implemented');
+  return {
+    kind, milestone, round: 1, sessionId,
+    issues: findings.map((finding, index) => ({ ...finding, id: issueId(kind, index), kind, status: 'unresolved', history: [] })),
+  };
 }
 
-// 再レビューの判定を反映する。初回集合に無い ID は無視し、新しい指摘は追加しない (§10, §15)
+// 再レビューの判定を、初回集合の未解決指摘に対してだけ反映する (§10, §15)
 export function applyVerdicts(set: IssueSet, verdicts: IssueVerdict[]): IssueSet {
-  throw new Error('Not implemented');
+  const round = set.round + 1;
+  const at = new Date().toISOString();
+  return {
+    ...set, round,
+    issues: set.issues.map(issue => {
+      const verdict = verdicts.find(item => item.issueId === issue.id);
+      if (!verdict || issue.status !== 'unresolved') return issue;
+      return { ...issue, status: verdict.status, history: [...issue.history, { round, status: verdict.status, by: 'claude', note: verdict.note, at }] };
+    }),
+  };
 }
 
-// Codex の対応を反映する。accepted はその理由を記録して解決済みとする (§11)
+// Codex の対応を反映する。理由付きの accepted を解決済みとして記録し、fixed は履歴に残して再レビューを待つ (§11)
 export function applyResponses(set: IssueSet, responses: IssueResponse[]): IssueSet {
-  throw new Error('Not implemented');
+  const at = new Date().toISOString();
+  return {
+    ...set,
+    issues: set.issues.map(issue => {
+      const response = responses.find(item => item.issueId === issue.id);
+      if (!response || issue.status !== 'unresolved') return issue;
+      const status: IssueStatus = response.decision === 'accepted' && response.reason.trim() ? 'accepted' : 'unresolved';
+      return { ...issue, status, history: [...issue.history, { round: set.round, status, by: 'codex', note: `${response.decision}: ${response.reason}`, at }] };
+    }),
+  };
 }
 
 // 再レビューで Claude に確認させる未解決の指摘を返す
-export function pendingIssues(set: IssueSet): ReviewIssue[] {
-  throw new Error('Not implemented');
+export function pendingIssues(set: IssueSet | null): ReviewIssue[] {
+  return set?.issues.filter(issue => issue.status === 'unresolved') ?? [];
 }
 
 // 全指摘が resolved または accepted なら true (§11)
 export function isSettled(set: IssueSet): boolean {
-  throw new Error('Not implemented');
+  return pendingIssues(set).length === 0;
 }
 
 // 種類と 0 始まりの連番から CR-001 / VR-001 形式の ID を作る
 export function issueId(kind: IssueKind, index: number): string {
-  throw new Error('Not implemented');
+  return `${kind === 'code' ? 'CR' : 'VR'}-${String(index + 1).padStart(3, '0')}`;
 }
