@@ -206,12 +206,11 @@ scenario の成否は assertion で判定し、1 件以上の assertion がす�
 
 ## 実行記録
 
-`.harness-state/` に実行状態と記録を保存します。
+`.harness-state/` に実行状態と記録を保存します。実装計画は project root の `.harness-plan.json` に保存し、作成のたびに commit します。
 
 | パス | 内容 |
 |---|---|
 | `state.json` | phase、checkpoint、進行中 milestone の指摘集合と E2E 結果、再試行・rollback 履歴 |
-| `plan.json` | 実装計画 |
 | `runs/<時刻>-<連番>-<milestone>-<処理>-<回数>/` | 実行 1 回分の記録。`record.json` (成否と失敗理由)、`command.json`、`stdout.log`、`stderr.log`、agent の `prompt.md` と出力、E2E の結果・screenshot・server / client log |
 | `runtime/` | server、MC Pilot home、mod 配置記録 |
 

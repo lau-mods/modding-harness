@@ -76,9 +76,8 @@ test('develop rolls back to the checkpoint after three scenario process failures
       { files: implementationFiles({ 'src/FEATURE_OK': 'yes' }) },
     ],
   }, { scenarioFailures: 3 });
-  const base = project.git('rev-parse', 'HEAD').trim();
-
   assert.equal(await developProject(project.root), 'complete');
+  const base = project.git('rev-parse', 'HEAD~1').trim();
 
   const state = project.harnessState();
   assert.equal(state.rollbacks.length, 1);
@@ -126,7 +125,7 @@ The feature is disabled.
   const result = await chatProject(project.root, 'Players can disable the feature');
   assert.deepEqual(result.milestones.map(milestone => milestone.id), ['M01', 'M02']);
   assert.equal(readFileSync(path.join(project.root, 'PROJECT.md'), 'utf8'), updated);
-  assert.equal(project.git('log', '-1', '--format=%s').trim(), 'spec: Add disabling the feature');
+  assert.deepEqual(project.git('log', '-3', '--format=%s').trim().split('\n'), ['plan: M01, M02', 'spec: Add disabling the feature', 'plan: M01']);
 });
 
 test('chat is refused while the plan is fixed', async () => {

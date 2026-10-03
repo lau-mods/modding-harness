@@ -4,7 +4,7 @@ import { writeAtomic } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
 import { run } from '../core/process.js';
 import type { Runner } from '../core/process.js';
-import { commitSpec } from '../git/git.js';
+import { commitFile } from '../git/git.js';
 import type { Plan } from '../plan/plan.js';
 import { checkActivation, checkStructure } from '../spec/check.js';
 import { parseProject } from '../spec/parser.js';
@@ -30,7 +30,7 @@ export async function chatProject(root: string, request: string, runner: Runner 
     });
     if (edit.spec.text !== ctx.spec.text) {
       await writeAtomic(projectPaths(root).spec, edit.spec.text);
-      await commitSpec(root, `spec: ${edit.summary.split('\n')[0]}`);
+      await commitFile(root, 'PROJECT.md', `spec: ${edit.summary.split('\n')[0]}`);
     }
     ctx.spec = edit.spec;
     if (edit.spec.status !== 'active' || checkActivation(edit.spec).length) {

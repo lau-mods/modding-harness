@@ -10,7 +10,7 @@ export type ProjectPaths = {
   spec: string; // PROJECT.md
   config: string; // .harness-config.json
   state: string; // 実行状態
-  plan: string; // 実装計画
+  plan: string; // 実装計画 (Git 管理対象)
   lock: string; // 多重実行防止
   runs: string; // 実行記録 (§29)
   runtime: string; // Minecraft 実機環境 (server・MC Pilot home・配置記録)
@@ -24,7 +24,7 @@ export function projectPaths(root: string): ProjectPaths {
     spec: path.join(root, 'PROJECT.md'),
     config: path.join(root, '.harness-config.json'),
     state: path.join(state, 'state.json'),
-    plan: path.join(state, 'plan.json'),
+    plan: path.join(root, '.harness-plan.json'),
     lock: path.join(state, 'lock'),
     runs: path.join(state, 'runs'),
     runtime: path.join(state, 'runtime'),

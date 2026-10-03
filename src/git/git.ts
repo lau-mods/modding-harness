@@ -43,10 +43,10 @@ export async function createCheckpoint(root: string, milestone: string, acIds: s
   return head(root);
 }
 
-// harness chat による PROJECT.md の変更を commit し、commit ID を返す (§23)
-export async function commitSpec(root: string, message: string): Promise<string> {
-  await git(root, ['add', 'PROJECT.md']);
-  await git(root, ['commit', '-m', message, '--', 'PROJECT.md']);
+// PROJECT.md (§23) や計画など 1 ファイルの変更だけを commit し、commit ID を返す
+export async function commitFile(root: string, file: string, message: string): Promise<string> {
+  await git(root, ['add', file]);
+  await git(root, ['commit', '-m', message, '--', file]);
   return head(root);
 }
 

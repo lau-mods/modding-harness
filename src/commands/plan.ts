@@ -2,7 +2,7 @@ import { proposePlan } from '../agents/claude.js';
 import { ExecutionFailure } from '../core/errors.js';
 import { run } from '../core/process.js';
 import type { Runner } from '../core/process.js';
-import { git } from '../git/git.js';
+import { commitFile, git } from '../git/git.js';
 import { checkPlan, savePlan } from '../plan/plan.js';
 import type { Plan } from '../plan/plan.js';
 import { activeCriteria, requireActionable } from '../spec/check.js';
@@ -20,7 +20,7 @@ export async function planProject(root: string, runner: Runner = run): Promise<P
   });
 }
 
-// 計画作成の本体。Claude の計画案を検証して保存し、前の計画の進捗を初期化する。chat / develop からも呼ぶ (§6, §23)
+// 計画作成の本体。Claude の計画案を検証して保存・commit し、前の計画の進捗を初期化する。chat / develop からも呼ぶ (§6, §23)
 export async function createPlan(ctx: WorkflowContext): Promise<Plan> {
   await enterPhase(ctx, 'planning');
   const input = {
@@ -36,6 +36,7 @@ export async function createPlan(ctx: WorkflowContext): Promise<Plan> {
     return candidate;
   });
   await savePlan(ctx.root, plan);
+  await commitFile(ctx.root, '.harness-plan.json', `plan: ${plan.milestones.map(milestone => milestone.id).join(', ')}`);
   Object.assign(ctx.state, { checkpoints: [], milestone: null, currentMilestone: null, retry: null });
   await enterPhase(ctx, 'idle');
   return plan;
