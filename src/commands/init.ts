@@ -3,12 +3,10 @@ import path from 'node:path';
 import { defaultConfig } from '../config/config.js';
 import { exists, writeAtomic } from '../core/fs.js';
 import { harnessRoot, projectPaths } from '../core/paths.js';
-import { run } from '../core/process.js';
-import { git } from '../git/git.js';
 
-// プロジェクトを Harness 管理対象として初期化する。PROJECT.md と .harness-config.json は存在しない場合だけ作成する (§25)
+// .harness submodule を持つプロジェクトを Harness 管理対象として初期化する。PROJECT.md と .harness-config.json は存在しない場合だけ作成する (§25)
 export async function initProject(root: string): Promise<void> {
-  if ((await run('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root })).code !== 0) await git(root, ['init']);
+  if (!/^\s*path = \.harness$/m.test(await readFile(path.join(root, '.gitmodules'), 'utf8').catch(() => ''))) throw new Error('Add Harness as the .harness Git submodule before harness init');
   await writeProjectTemplate(root);
   await writeDefaultConfig(root);
   await ignoreStateDir(root);

@@ -27,17 +27,18 @@ npm link   # harness コマンドを PATH に追加する
 
 ### 1. プロジェクトを用意する
 
-新しく作る場合は NeoForge MDK などのテンプレートから作成します。
+新しく作る場合は NeoForge MDK などのテンプレートから作成します。Harness は `.harness` submodule として追加されます。
 
 ```sh
 harness create my-mod --template-repo https://github.com/NeoForgeMDKs/MDK-1.21.1-ModDevGradle.git
 cd my-mod
 ```
 
-既存のプロジェクトでは `init` を実行します。
+既存のプロジェクトでは Harness を `.harness` submodule として追加してから `init` を実行します。
 
 ```sh
 cd my-mod
+git submodule add https://github.com/lau-mods/modding-harness.git .harness
 harness init
 ```
 
@@ -218,8 +219,8 @@ scenario の成否は assertion で判定し、1 件以上の assertion がす�
 
 | コマンド | 用途 |
 |---|---|
-| `harness create <dir> --template-repo <repo> [--template-ref <ref>]` | テンプレートから NeoForge プロジェクトを作成する |
-| `harness init` | プロジェクトを Harness 管理対象として初期化する |
+| `harness create <dir> --template-repo <repo> [--template-ref <ref>]` | テンプレートから NeoForge プロジェクトを作成し、Harness を `.harness` submodule として追加する |
+| `harness init` | `.harness` submodule を持つプロジェクトを Harness 管理対象として初期化する |
 | `harness doctor` | 必要な開発環境を確認する |
 | `harness validate` | PROJECT.md と Harness 設定を確認する |
 | `harness status` | 現在の実行状態を表示する |
