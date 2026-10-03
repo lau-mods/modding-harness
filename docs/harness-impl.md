@@ -1,132 +1,80 @@
-# Task
+# Modding Harness ユーザ仕様
 
-このrepositoryに、Minecraft Java Edition / NeoForge Mod開発用の **Modding Harness本体** を実装してください。
+## 1. 目的
 
-計画だけを提示して終了してはいけません。repositoryを調査し、設計、実装、テスト、ドキュメント整備、claudeによる自己レビューまで一回の実行で完了してください。
+Modding Harness は、NeoForge Mod の製品仕様を基準として、AI による実装、ビルド、独立レビュー、Minecraft 実機上での E2E テスト、Git checkpoint 作成までを自動実行する開発ハーネスである。
 
-不明な内部実装事項について質問はせず、以下の設計原則から最も単純で保守しやすい選択をしてください。
-
-`PROJECT.md` と矛盾しない要件・AC の補足は許容します。補足した製品仕様はまず `PROJECT.md` に記録し、派生仕様へ反映してください。
-
----
-
-# Goal
-
-このHarnessは、既存または新規のNeoForge projectに `.harness` Git submoduleとして追加される独立した開発基盤です。
-
-Harnessが管理する対象は、
-
-- `PROJECT.md` に確定された製品仕様
-- AIによる仕様編集
-- execution planning
-- milestone単位の実装
-- independent review
-- deterministic verification
-- Minecraft runtime verification
-- visual verification
-- local Git checkpoint
-
-です。
-
-Harness自身はMinecraft Mod templateを所有しません。製品仕様を書くための `templates/PROJECT.md` はこの repository に含め、init と create が同じファイルを使用します。
-
-最終的な開発状態は、
-
-- `PROJECT.md` の全active Acceptance Criteriaが実装済み
-- 必要なverificationがすべて成功
-- 各milestoneが検証済みlocal commitとして確定
-
-した状態です。
-
----
-
-# Core architectural principle
-
-Harnessを「LLM同士を自由に会話させるmulti-agent framework」として設計しないでください。
-
-中心は明示的なstate machineです。
-
-概念的には以下です。
+利用者は製品仕様と必要な実行環境を準備し、Harness は milestone 単位で次の工程を反復する。
 
 ```text
-User Request
-    ↓
-Spec Edit
-    ↓
-Spec Validation
-    ↓
-Deterministic Projection
-    ↓
-Execution Planning
-    ↓
-Milestone
-    ├─ Implementation
-    ├─ Static / Unit
-    ├─ Independent Code Review
-    ├─ Build
-    ├─ GameTest
-    ├─ E2E
-    ├─ Visual / Persistence / Multiplayer
-    └─ Verified Local Commit
-    ↓
-Next Milestone
-    ↓
-Complete
+製品仕様
+  ↓
+実装計画
+  ↓
+実装
+  ↓
+compile / build
+  ↓
+Claude コードレビュー
+  ↓
+Minecraft 実機 E2E
+  ↓
+必要な場合は Claude 画像レビュー
+  ↓
+Git checkpoint
+  ↓
+次の milestone
 ```
 
-AIは推論を行うコンポーネントであり、system stateの正本ではありません。
-
-現在phase、検証状態、checkpoint可否、完了判定はHarnessが決定してください。
+Harness の実行は、全 milestone の完了、利用者による明示的な中断、または継続不能な fatal error の発生まで継続する。
 
 ---
 
-# Non-negotiable specification rules
+## 2. 基本原則
 
-## PROJECT.md
+Harness は次の原則に従う。
 
-`PROJECT.md` は AC などの詳細も含む唯一の製品仕様の正本です。派生仕様書は正本と矛盾してはいけません。正本と矛盾しない要件・AC の追加や具体化は許容しますが、派生仕様書だけに保持せず、Spec Editor を通じて先に `PROJECT.md` へ反映してください。
+1. `PROJECT.md` を製品仕様の正本とする。
+2. 製品仕様はプレイヤーまたは Minecraft server から観測できる挙動を記述する。
+3. 実装は milestone 単位で進める。
+4. milestone の完了判定は Minecraft 実機 E2E の成功を最終条件とする。
+5. compile/build、コードレビュー、実機 E2E の順で品質確認を行う。
+6. レビュー指摘は最初のレビューで確定し、その後は確定済み指摘の解消判定に限定する。
+7. 通常の実装失敗やテスト失敗では Harness を停止せず、直前 checkpoint へ復元して milestone を再実行する。
+8. milestone が成功した時点で Harness が Git checkpoint を作成する。
+9. 次の milestone は直前 milestone の checkpoint 作成後に開始する。
+10. Harness 実行中に Harness 本体の変更は許可されない。
 
-以下は最終的にすべて `PROJECT.md` に存在しなければなりません。
-
-- Feature
-- Requirement
-- Acceptance Criterion
-- Constraints
-- Visual requirements
-- Persistence requirements
-- Multiplayer requirements
-- Compatibility requirements
-- Performance requirements
-- Open Questions
-
-Agent conversation、Execution Plan、generated projection、review result、test resultは製品仕様の正本ではありません。
-
-情報が競合した場合は `PROJECT.md` を優先してください。
-
-未指定の詳細が、既存の類似実装、提示された類似・参考実装、Minecraft/modding における極めて一般的な慣行からほぼ一意に決まる場合は、確認を経ずに進めて構いません。根拠は既存の明示仕様を上書きするものではありません。製品として観測可能な補足は根拠とともに該当 Requirement/AC に記録し、純粋な内部実装の選択まで製品仕様に列挙する必要はありません。根拠を考慮しても実質的に異なる製品判断が残る場合だけ Open Questions として扱います。
+本仕様では、開発プロトタイプとしての実行経路の単純さと反復可能性を優先する。
 
 ---
 
-# PROJECT.md standard structure
+# 3. 製品仕様
 
-最低限、次の形式を扱ってください。
+## 3.1 `PROJECT.md`
+
+プロジェクトルートの `PROJECT.md` を製品仕様の正本とする。
+
+`PROJECT.md` は少なくとも次の情報を持つ。
 
 ```markdown
 # Project
 
-Status: draft
+Status: active
 
-Project ID:
-Mod ID:
-Package Path:
+Project ID: example-project
+Mod ID: examplemod
+Package Path: com.example.examplemod
 
 ## Platform
 
-Minecraft:
-NeoForge:
-Java:
+Minecraft: ...
+NeoForge: ...
+Java: ...
 
 ## Purpose
+
+...
 
 ## Features
 
@@ -134,11 +82,13 @@ Java:
 
 #### Description
 
+...
+
 #### Requirements
 
 ##### R-F001-001: Requirement name
 
-Requirement description.
+...
 
 #### Acceptance Criteria
 
@@ -153,1548 +103,1079 @@ Action:
 Expected Result:
 ...
 
-Verification:
-- unit
-- gametest
-- e2e
-- visual
-- persistence
-- multiplayer
-
 ## Cross-cutting Requirements
 
 ### Persistence
 
+...
+
 ### Multiplayer
+
+...
 
 ### Visual
 
+...
+
 ### Performance
+
+...
 
 ### Compatibility
 
+...
+
 ## Constraints
 
+...
+
 ## Open Questions
+
+None.
 ```
 
-Feature、Requirement、Acceptance Criterionにはstable IDを要求してください。
+Acceptance Criterion には verification type 等の分類を付与しない。
 
-削除済みIDを別の意味へ再利用してはいけません。
-
-Verificationの標準typeは、
-
-- unit
-- gametest
-- e2e
-- visual
-- persistence
-- multiplayer
-
-です。
-
-Build成功は各AC固有のverificationではなく、checkpoint共通のHarness invariantとして扱ってください。
+すべての Acceptance Criterion は、最終的に Minecraft 実機 E2E によって確認する。
 
 ---
 
-# Specification Projection
+## 3.2 製品仕様の記述単位
 
-Specification ProjectionはAI生成要約にしてはいけません。
+仕様は Feature、Requirement、Acceptance Criterion の3階層で記述する。
 
-`PROJECT.md`から機械的かつ決定論的に、
+### Feature
 
-- Feature view
-- Acceptance Criteria view
-- Testing view
-- Agent context
+ユーザから見た一まとまりの機能を表す。
 
-などを生成してください。
-
-許可する処理は、
-
-- Markdown AST parsing
-- section抽出
-- heading抽出
-- ID indexing
-- source range記録
-- parent-child relation
-- verification type集約
-- deterministic formatting
-
-です。
-
-Projection 生成時に禁止する処理は、
-
-- AIによる要約
-- Requirementの追加
-- ACの追加
-- 暗黙条件の追加
-- wordingの意味的書き換え
-- product semanticsの推定
-
-です。
-
-要件・AC の補足は Spec Editor が先に `PROJECT.md` へ反映し、構造検証・差分検出・spec revision commit を経て、この deterministic projection に取り込みます。Projection 自体に AI 推論を混ぜません。
-
-materializeされたprojectionが存在する場合、`validate`で `PROJECT.md` から再生成した内容と一致することを検査してください。
-
-projectionを直接編集した状態はvalidation errorにしてください。
-
----
-
-# Execution Plan
-
-Execution PlanはAIによる推論を許可します。
-
-Plannerは、
-
-- milestone分割
-- milestone順序
-- source変更候補
-- dependency
-- implementation approach
-- test implementation strategy
-- verification順序
-
-を決定して構いません。
-
-ただし、
-
-- すべてのmilestoneは1個以上の既存ACに紐付く
-- PROJECT.mdに存在しない製品要件を追加しない
-- PROJECT.mdにないものをmilestone completion conditionにしない
-
-ことを保証してください。
-
-Milestone boundaryは、単なるコード構造だけでなく **高コストなMinecraft runtime verification回数を減らすこと** も考慮してください。
-
-例えば、
+例:
 
 ```text
-block registration
-block rendering
-GUI
-GUI texture
+F-001: Mechanical Press
 ```
 
-を意味なく別々のruntime milestoneへ分割しないでください。
+### Requirement
 
-一方、GameTestだけで検証できるserver logicと、実clientが必要なvisual/UIは分離して構いません。
+Feature が満たす必要がある製品要求を表す。
 
----
+例:
 
-# Agent responsibilities
+```text
+R-F001-001:
+Mechanical Press に銅インゴットを投入すると加工を開始する。
+```
 
-モデル固有のコードをworkflow全体へ散らさず、薄いadapterへ閉じ込めてください。
+### Acceptance Criterion
 
-ただし将来の未知のAgent provider向けplugin frameworkは作らないでください。
+実機上で合否を判断する具体的な観測条件を表す。
 
-現時点で必要なのは以下だけです。
+例:
 
-## Spec Editor
+```text
+AC-F001-001
 
-基本的にはCodex CLIを使用します。
+Preconditions:
+Mechanical Press が設置され、入力スロットが空である。
 
-Userのproduct changeを既存 `PROJECT.md` 構造へ反映します。
+Action:
+プレイヤーが銅インゴットを1個投入する。
 
-Spec Editor は利用者の要求と既存仕様を反映し、それらと矛盾しない要件・AC の補足を許容してください。無関係な機能を追加したり、明示仕様を利用者の変更要求なしに別の挙動へ置換してはいけません。
+Expected Result:
+加工完了後、銅板が1個出力される。
+```
 
-既存・参考実装や Minecraft/modding の一般的な慣行からほぼ一意に決まる詳細は、確認せず具体化してください。それでも実質的に異なる製品判断が残る場合だけ Open Question としてください。参照した実装や慣行の根拠を該当する記述に残します。未読の URL やファイル名だけで内容を確認したことにしてはいけません。
-
-Spec Editor実行後は必ずdeterministic validationを行ってください。
-
----
-
-## Planner
-
-Codex CLIを使用して構いません。
-
-PROJECT.mdのACをmilestoneへ分割します。
-
-Planner outputはstructured JSONとし、schema validationしてください。
-
-自然言語だけをsystem stateとして使わないでください。
+Acceptance Criterion は E2E scenario を作成できる具体性を持つことを要求する。
 
 ---
 
-## Implementation Agent
+# 4. 仕様状態
 
-Codex CLIを使用します。
+`PROJECT.md` は `draft` または `active` の状態を持つ。
 
-Implementation Agentは現在milestoneだけを実装します。
+## 4.1 draft
 
-明示されていない実装詳細でも、関連する既存・参考実装や一般的な Minecraft/modding の慣行からほぼ一意に決まり、`PROJECT.md` に矛盾しなければ確認を待たず進めてください。新たな製品 AC が必要な場合は Spec Editor 経由で先に正本へ反映します。
+仕様作成中の状態を表す。
 
-Implementation Agentには、
+利用者は Feature、Requirement、Acceptance Criterion、Open Questions を編集する。
 
-- relevant PROJECT.md projection
-- current milestone
-- relevant source files
-- previous review feedback if any
-- code-quality policy
+## 4.2 active
 
-だけを可能な限り小さく渡してください。
+自動実装を開始できる状態を表す。
 
-Implementation Agentは以下を変更してはいけません。
+active とするために、次の情報を確定する。
 
-- `PROJECT.md`
-- `.harness/`
-- Harness state
-- Git history
+- Project ID
+- Mod ID
+- Package Path
+- Minecraft version
+- NeoForge version
+- Java version
+- 1件以上の Feature
+- 1件以上の Acceptance Criterion
+- 解決済みの Open Questions
 
-Agent実行後にGit diffを検査し、禁止pathを変更していたらfailureにしてください。
+未決事項が存在しない場合は次の形式とする。
 
-Implementation Agent自身にはcommitさせないでください。
+```markdown
+## Open Questions
 
-Implementation Agent自身にはMinecraft clientを起動させないでください。
-
-`runClient`やMC Pilot runtime startはHarnessだけが制御してください。
+None.
+```
 
 ---
 
-## Review Agent
+# 5. ID
 
-Claude Code / Claude Opusを使用する想定です。
+Feature、Requirement、Acceptance Criterion は安定した ID を持つ。
 
-Review Agentはread-only reviewerです。
+形式は次のとおりとする。
 
-Review Agentへsource変更を許可しないでください。
+```text
+F-001
+R-F001-001
+AC-F001-001
+```
 
-CLIのpermission modeだけに依存せず、review前後のGit状態をHarness側でも比較し、変更が発生した場合はfailureにしてください。
+Feature 内の Requirement と Acceptance Criterion は、Feature ID と対応する番号を使用する。
 
-Review対象は、
+ID は計画、E2E scenario、実行結果、checkpoint の対応付けに使用する。
 
-### Correctness
+---
 
-- target AC compliance
-- NeoForge API usage
-- lifecycle correctness
-- client/server separation
-- registration
-- serialization
-- networking
-- synchronization
-- thread/context correctness
+# 6. Cross-cutting Requirements
 
-### Code quality
+複数 Feature に共通する要求は `Cross-cutting Requirements` に記述する。
 
-- unnecessary abstraction
-- unnecessary interface
-- unnecessary abstract class
-- unnecessary wrapper
-- unnecessary private helper
-- unnecessary temporary/local variable
-- unnecessary null checks
-- unnecessary broad exception handling
-- unnecessary fallback
-- speculative configuration
-- speculative extension points
-- premature generalization
-- duplicate concepts
-- unclear names
-- unnecessarily indirect control flow
-- comments that only restate code
+代表的な対象は次のとおりである。
 
-です。
+- 保存と再読み込み
+- multiplayer 同期
+- visual 表現
+- performance
+- compatibility
 
-Review Agentに次の原則を明示してください。
+これらはテスト分類を表すものではなく、製品要求を表す。
 
-> Do not recommend abstractions for hypothetical future requirements.
+たとえば保存要件が存在する場合、対応する E2E scenario 内で server 再起動や world 再読み込みを実行する。
 
-追加の抽象化は、
+multiplayer 要件が存在する場合、対応する E2E scenario 内で必要数の client を起動して観測する。
 
-- current requirement
-- existing real duplication
-- real API/lifecycle boundary
-- concrete correctness problem
-- concrete testability problem
+---
 
-のいずれかで正当化されなければなりません。
+# 7. Open Questions
 
-Review outputもstructured JSONとし、schema validationしてください。
+製品挙動について複数の合理的な選択肢が残る場合、`Open Questions` に記録する。
 
-例えば、
+例:
+
+```text
+加工途中でブロックを破壊した場合、
+投入済み素材を返却するか。
+```
+
+Harness は active 化前に Open Questions の解消を要求する。
+
+既存コードや利用者が指定した参考実装から挙動を明確に判断できる場合、その内容を Requirement または Acceptance Criterion として仕様へ反映する。
+
+---
+
+# 8. Harness 設定
+
+プロジェクト固有の実行情報は `.harness-config.json` に記述する。
+
+設定対象は次のとおりである。
 
 ```json
 {
-  "verdict": "changes_required",
-  "issues": [
+  "project": {
+    "buildFile": "build.gradle",
+    "metadata": "src/main/resources/META-INF/neoforge.mods.toml"
+  },
+  "gradle": {
+    "compile": "classes",
+    "build": "build"
+  },
+  "agents": {
+    "implementation": {
+      "command": "codex"
+    },
+    "review": {
+      "command": "claude"
+    }
+  },
+  "runtime": {
+    "command": "mct",
+    "clients": [],
+    "server": {},
+    "deploy": [],
+    "logs": []
+  }
+}
+```
+
+設定値は利用プロジェクトに応じて変更する。
+
+---
+
+# 9. CLI
+
+Harness は次の主要コマンドを提供する。
+
+| コマンド | 用途 |
+|---|---|
+| `harness create` | 新規 Mod プロジェクトを作成する |
+| `harness init` | プロジェクトを Harness 管理下へ初期化する |
+| `harness doctor` | 必要な外部環境を確認する |
+| `harness validate` | 仕様と設定を確認する |
+| `harness status` | 現在の実行状態を表示する |
+| `harness chat` | 製品仕様を変更する |
+| `harness plan` | milestone 計画を生成する |
+| `harness develop` | 全 milestone を実行する |
+
+---
+
+# 10. `harness doctor`
+
+`doctor` は Harness の実行に必要な環境を確認する。
+
+主な対象は次のとおりである。
+
+- Node.js
+- Git
+- Java
+- Gradle wrapper
+- Codex CLI
+- Claude Code CLI
+- Minecraft 実機制御ツール
+- server 設定
+- client 設定
+
+診断結果から、開発開始前に解決すべき設定不足を確認できる。
+
+---
+
+# 11. `harness validate`
+
+`validate` は開発開始に必要な入力情報を検査する。
+
+主な対象は次のとおりである。
+
+- `PROJECT.md` の構造
+- ID の形式と対応関係
+- Acceptance Criterion の必須項目
+- Open Questions
+- `.harness-config.json`
+- Gradle task
+- runtime 設定
+- Harness の実行状態
+
+仕様または設定から実行方法を一意に決定できない状態は fatal error として扱う。
+
+---
+
+# 12. `harness status`
+
+`status` は現在の進行状況を表示する。
+
+表示内容は少なくとも次を含む。
+
+```text
+Project
+Current Git checkpoint
+Current milestone
+Current attempt
+Current phase
+Completed milestones
+Remaining milestones
+Last failure
+```
+
+phase は次の程度に単純化する。
+
+```text
+idle
+planning
+implementing
+building
+reviewing
+e2e
+checkpointing
+retrying
+fatal
+complete
+```
+
+---
+
+# 13. `harness plan`
+
+`plan` は active な Acceptance Criterion を milestone に分割する。
+
+すべての active Acceptance Criterion をいずれかの milestone に割り当てる。
+
+milestone は少なくとも次を持つ。
+
+```text
+Milestone ID
+対象 Acceptance Criteria
+依存 milestone
+実装対象
+E2E で確認する製品挙動
+```
+
+例:
+
+```text
+M01
+  AC-F001-001
+  AC-F001-002
+
+M02
+  depends on M01
+  AC-F002-001
+```
+
+実装方法の詳細は Implementation Agent が milestone 実行時に決定する。
+
+---
+
+# 14. 計画の固定
+
+`develop` が最初の milestone の実装を開始した時点で、その実行に使用する計画を固定する。
+
+以降は、すべての milestone が完了するまで同じ計画を使用する。
+
+milestone の失敗、再試行、レビュー修正、E2E 修正は同一計画上で処理する。
+
+製品要求を変更する場合は、進行中の開発実行を終了し、`harness chat` によって仕様を更新した後、新しい plan を生成する。
+
+---
+
+# 15. `harness develop`
+
+`develop` は全 milestone を順番に実行する。
+
+基本フローは次のとおりである。
+
+```text
+validate
+  ↓
+plan 読み込み
+  ↓
+M01
+  ↓
+checkpoint
+  ↓
+M02
+  ↓
+checkpoint
+  ↓
+...
+  ↓
+complete
+```
+
+各 milestone は独立した成功単位として扱う。
+
+---
+
+# 16. Milestone 実行
+
+milestone の基本処理は次のとおりである。
+
+```text
+直前 checkpoint から開始
+        ↓
+Codex による実装
+        ↓
+compile
+        ↓
+build
+        ↓
+Claude コードレビュー
+        ↓
+Minecraft 実機 E2E
+        ↓
+必要な画像の Claude レビュー
+        ↓
+checkpoint
+```
+
+compile/build または E2E が失敗した場合、その attempt を失敗として扱う。
+
+Harness は失敗情報を保存した後、作業中の変更を破棄し、直前 checkpoint へ復元する。
+
+次の attempt では、直前 attempt の失敗内容を Codex に渡して同じ milestone を再実装する。
+
+```text
+attempt N
+   ↓
+失敗
+   ↓
+失敗内容を保存
+   ↓
+直前 checkpoint へ復元
+   ↓
+attempt N+1
+```
+
+成功するまで同じ milestone を反復する。
+
+---
+
+# 17. Compile / Build
+
+Codex による実装後、設定された Gradle task を実行する。
+
+順序は次のとおりである。
+
+```text
+compile task
+   ↓
+build task
+```
+
+両方が成功した candidate のみコードレビューへ進む。
+
+compile または build が失敗した場合は milestone attempt を終了し、直前 checkpoint から再試行する。
+
+次回 Codex 実行には、コンパイラ出力、Gradle 出力、失敗した task を入力として渡す。
+
+---
+
+# 18. コードレビュー
+
+compile/build 成功後、Claude が milestone の変更内容をレビューする。
+
+レビュー対象には次を含む。
+
+- 対象 Acceptance Criterion
+- milestone の目的
+- Git diff
+- 変更された source
+- resource
+- build 設定
+- Minecraft / NeoForge API の利用
+- client/server 関係
+- registration
+- serialization
+- networking
+- state synchronization
+- lifecycle
+
+## 18.1 初回レビュー
+
+各 milestone attempt における最初のコードレビューで、Claude はその candidate に対する指摘事項をすべて列挙する。
+
+指摘には安定した issue ID を付与する。
+
+例:
+
+```text
+CR-001
+CR-002
+CR-003
+```
+
+この時点でコードレビューの指摘集合を確定する。
+
+## 18.2 修正レビュー
+
+Codex が指摘対応としてコードを変更した場合、compile/build を再実行する。
+
+成功後、Claude は確定済み issue の状態のみを判定する。
+
+判定は次のいずれかとする。
+
+```text
+open
+resolved
+```
+
+修正レビューでは新しい issue を追加しない。
+
+## 18.3 Codex による受容
+
+Codex は個別 issue について、修正する代わりに「現状を許容する」と判断できる。
+
+その場合は、issue ID と理由を明示する。
+
+例:
+
+```text
+CR-003
+Disposition: accepted
+Reason:
+対象 API の lifecycle 上、この状態は要求された製品挙動に影響しない。
+```
+
+issue は次のいずれかを満たした時点で閉じる。
+
+- Claude が `resolved` と判定した。
+- Codex が理由付きで `accepted` と判定した。
+
+## 18.4 レビューループ
+
+すべての初回指摘が閉じるまで、次のループを継続する。
+
+```text
+Codex 修正
+   ↓
+compile / build
+   ↓
+Claude による既存 issue の再確認
+   ↓
+未解決 issue があれば Codex へ戻す
+```
+
+このループ自体は通常の milestone 処理として扱う。
+
+---
+
+# 19. Minecraft 実機 E2E
+
+コードレビュー完了後、対象 Mod を Minecraft 実環境へ配置し、Acceptance Criterion に対応する E2E scenario を実行する。
+
+E2E は milestone 完了判定の中心となる。
+
+E2E scenario は、製品仕様に必要な操作をそのまま実行する。
+
+例:
+
+```text
+server 起動
+client 起動
+world 読み込み
+対象 block を配置
+item を投入
+一定条件まで待機
+出力状態を観測
+結果を記録
+```
+
+保存要件がある場合は scenario 内で restart を実行する。
+
+multiplayer 要件がある場合は scenario 内で複数 client を使用する。
+
+GUI や block model の確認が必要な場合は scenario 内で screenshot を取得する。
+
+これらはすべて通常の E2E 操作として扱う。
+
+---
+
+# 20. E2E Scenario
+
+プロジェクト固有の E2E scenario は `tests/e2e/` に配置する。
+
+scenario manifest は Acceptance Criterion と実行コマンドを対応付ける。
+
+例:
+
+```json
+{
+  "scenarios": [
     {
-      "severity": "blocking",
-      "category": "unnecessary_abstraction",
-      "file": "src/...",
-      "lines": "10-40",
-      "reason": "...",
-      "requiredChange": "..."
+      "id": "mechanical-press",
+      "acIds": [
+        "AC-F001-001",
+        "AC-F001-002"
+      ],
+      "command": [
+        "node",
+        "tests/e2e/mechanical-press.mjs"
+      ]
     }
   ]
 }
 ```
 
-のような形式です。
+scenario は結果を machine-readable な形式で返す。
 
-Review Agentの長い会話履歴をImplementation Agentへ渡さず、structured review resultだけを渡してください。
-
----
-
-# Code-quality philosophy
-
-このHarness自身の実装にも同じ基準を適用してください。
-
-「コード行数を最小にする」ことは目的ではありません。
-
-**同じ責務を満たすなら、概念数、間接参照、状態数が少ない実装を優先してください。**
-
-次を避けてください。
-
-- 1 implementationしかないinterface
-- 現在不要なabstract base class
-- factory of factory
-- provider registry
-- dependency injection container
-- generic plugin architecture
-- event bus
-- speculative extension mechanism
-- unnecessary repository/service/controller layering
-- trivial wrapper
-- one-line private method proliferation
-- metricを満たすためだけのmethod分割
-- 将来必要かもしれないという理由だけのconfig option
-- legacy compatibility layer
-- migration framework
-- fallback chain
-
-必要な境界だけを作ってください。
-
-特に、
-
-```text
-Git
-Gradle
-Codex
-Claude
-MC Pilot
-```
-
-へのsubprocess境界は分離して構いません。
-
----
-
-# Technology
-
-以下をdefaultにしてください。
-
-- Node.js >= 20
-- TypeScript
-- ESM
-- npm
-- Node built-in test runner `node:test`
-- Node built-in `util.parseArgs`
-- Node built-in `child_process`
-- Markdown AST parserとして必要最小限の依存を使用
-
-CLI framework、DI framework、workflow frameworkは導入しないでください。
-
-Markdown構造を正規表現だけで無理に解析せず、AST parserを使用してください。
-
-runtime dependencyは必要最小限にしてください。
-
-TypeScriptはstrict modeにしてください。
-
----
-
-# Repository architecture
-
-概ね以下の責務構造にしてください。
-
-厳密にこのdirectory名へ従う必要はありませんが、不要な層を増やさないでください。
-
-```text
-/
-├── src/
-│   ├── cli/
-│   ├── project/
-│   ├── spec/
-│   │   ├── parser
-│   │   ├── validator
-│   │   ├── projector
-│   │   └── diff
-│   ├── planning/
-│   ├── agents/
-│   │   ├── codex
-│   │   └── claude
-│   ├── review/
-│   ├── verification/
-│   │   ├── static
-│   │   ├── unit
-│   │   ├── build
-│   │   ├── gametest
-│   │   ├── e2e
-│   │   ├── visual
-│   │   ├── persistence
-│   │   └── multiplayer
-│   ├── runtime/
-│   │   └── mc-pilot
-│   ├── git/
-│   └── state/
-│
-├── schemas/
-├── prompts/
-├── docs/
-├── test/
-├── package.json
-├── tsconfig.json
-└── README.md
-```
-
-Harness repository内にNeoForge MDK、Minecraft Mod sample project、固定NeoForge project templateを含めないでください。
-
----
-
-# Project layout after installation
-
-Harnessを導入されたprojectは概ね以下です。
-
-```text
-my-mod/
-├── .git/
-├── .gitmodules
-├── .harness/
-├── .harness-config.json
-├── .harness-state/
-├── PROJECT.md
-├── tests/
-│   └── e2e/
-├── src/
-├── gradle/
-├── build.gradle
-├── gradle.properties
-├── settings.gradle
-└── ...
-```
-
-`.harness-state/` はgenerated runtime stateでありgitignore対象です。
-
-製品仕様を `.harness-state/` に保存してはいけません。
-
----
-
-# Project-local config
-
-`.harness-config.json` はHarness integrationだけを保持してください。
-
-製品仕様を入れてはいけません。
-
-例えば、
+例:
 
 ```json
 {
-  "gradle": {
-    "build": "build",
-    "test": "test",
-    "gameTest": "runGameTestServer",
-    "client": "runClient"
-  },
-  "agents": {
-    "implementation": {
-      "command": "codex",
-      "model": null
-    },
-    "review": {
-      "command": "claude",
-      "model": null
+  "scenario": "mechanical-press",
+  "passed": true,
+  "assertions": [
+    {
+      "name": "output item",
+      "expected": "examplemod:copper_plate x1",
+      "actual": "examplemod:copper_plate x1",
+      "passed": true
     }
-  },
-  "runtime": {
-    "provider": "mc-pilot",
-    "command": "mct"
-  }
+  ],
+  "screenshots": [
+    "press-result.png"
+  ]
 }
 ```
 
-モデル名のように変化し得る値をsourceへhard-codeしないでください。
-
-modelがnullならCLI/account defaultを使用してください。
+すべての対象 Acceptance Criterion に対して成功した観測結果が存在することを checkpoint 条件とする。
 
 ---
 
-# Explicit configuration policy
+# 21. 画像レビュー
 
-project capabilityの判定順序は、
+E2E scenario が visual な製品挙動を確認する screenshot を生成した場合、Claude が画像レビューを行う。
+
+対象例は次のとおりである。
+
+- block model
+- item model
+- texture
+- GUI layout
+- text placement
+- transparency
+- clipping
+- animation の特定フレーム
+- Acceptance Criterion に記述された見た目
+
+## 21.1 初回画像レビュー
+
+最初の画像レビューで、Claude は visual 上の指摘事項をすべて列挙する。
+
+例:
 
 ```text
-explicit config
-↓
-single unambiguous detection
-↓
-error
+VR-001
+VR-002
 ```
 
-としてください。
+この時点で visual issue の集合を確定する。
 
-多数のtask名、古いlayout、legacy configなどを総当たりしないでください。
+## 21.2 修正後レビュー
 
-判定不能なら明確なerrorを出してください。
-
----
-
-# CLI
-
-最低限、以下を実装してください。
+Codex が visual issue を修正した場合、変更後の candidate に対して次を再実行する。
 
 ```text
-harness create
-harness init
-harness doctor
-harness validate
-harness status
-harness chat
-harness plan
-harness develop
+compile
+build
+コードレビュー既存 issue 確認
+E2E
+screenshot 取得
+visual issue 確認
 ```
 
-package binaryとして利用できるようにしてください。
+Claude の画像再レビューは既存 visual issue の解消判定に限定する。
 
-## create
+新しい visual issue は追加しない。
 
-概念上、
+Codex はコードレビューと同様に、理由付きで visual issue を受容できる。
 
-```text
-clone specified NeoForge repository/ref
-↓
-materialize project files
-↓
-create independent Git repository
-↓
-add this Harness as .harness submodule
-↓
-init
-```
-
-です。
-
-想定interface:
-
-```sh
-harness create ./my-mod \
-  --template-repo <repo> [--template-ref <revision>]
-```
-
-`--template-ref` は省略可能です。省略時は取得元 repository の default branch の HEAD を使用します。
-
-推測fallbackは行わないでください。
-
-NeoForge template側の `.git` historyをそのままproject repositoryとして利用せず、独立したGit repositoryへmaterializeしてください。
+すべての visual issue が `resolved` または `accepted` になるまでループを継続する。
 
 ---
 
-## init
+# 22. E2E 失敗
 
-既存NeoForge projectへHarness contractを導入します。
+E2E の assertion が失敗した場合、その milestone attempt を失敗として扱う。
 
-最低限、
+Harness は少なくとも次を保存する。
 
-- Git repository確認
-- `.harness` submodule確認
-- Gradle wrapper確認
-- NeoForge project capability確認
-- mod metadata確認
-- `PROJECT.md`確認
-- PROJECT.mdがなければ詳細template生成
-- `.harness-config.json`生成
-- `.harness-state/` gitignore設定
+- 失敗した scenario
+- 対応 Acceptance Criterion
+- expected value
+- actual value
+- server log
+- client log
+- screenshot
+- runtime command result
 
-を行ってください。
+その後、作業中 candidate を破棄し、直前 checkpoint へ復元する。
 
-既存 `PROJECT.md` や既存configを無条件に上書きしてはいけません。
-
----
-
-## doctor
-
-外部runtimeを診断してください。
-
-最低限、
-
-- node
-- git
-- java
-- Gradle wrapper
-- codex CLI
-- claude CLI
-- mct / MC Pilot
-
-を確認してください。
-
-external CLIが存在しない場合、Harness自体のinstallを壊さず、
-
-```text
-available
-unavailable
-misconfigured
-```
-
-を明確に表示してください。
-
----
-
-## validate
-
-最低限、
-
-- Project Contract
-- PROJECT.md structure
-- duplicate IDs
-- invalid IDs
-- unknown verification type
-- missing AC required fields
-- projection consistency
-- config schema
-- state schema
-
-を検証してください。
-
-推測修復しないでください。
-
----
-
-## status
-
-人間が現在状態を短く把握できる出力にしてください。
-
-例えば、
-
-- project revision
-- spec hash
-- current phase
-- active milestone
-- verified AC count
-- pending AC count
-- blocked AC count
-- last checkpoint
-- working tree status
-
-です。
-
----
-
-## chat
-
-Product Changeの入口です。
-
-概念的に、
-
-```text
-User Request
-↓
-Spec Editor
-↓
-PROJECT.md modification
-↓
-validate
-↓
-projection regenerate
-↓
-changed AC detection
-↓
-local spec revision commit
-↓
-replan
-```
-
-としてください。
-
-Spec Editor自身にはcommitさせず、validation後にHarnessがcommitしてください。
-
-要求と `PROJECT.md` に矛盾しない要件・AC の補足を許容します。`harness chat '要求' --reference src/...` で既存・参考実装を Spec Editor に渡せます。`--reference` は繰り返し指定でき、project 内の許可された実装・テスト path の内容を read-only context として渡します。外部の参考実装は必要な抜粋を要求本文へ含めてください。
-
----
-
-## plan
-
-PROJECT.mdのactive ACをmilestoneへ分解します。
-
-structured Execution Planを生成し、schema validationしてください。
-
-全active ACが以下のどれかになることを確認してください。
-
-- planned
-- already verified
-- blocked
-
-理由なく未割当ACを残さないでください。
-
----
-
-## develop
-
-通常の開発入口です。
-
-概念的に、
-
-```text
-validate
-↓
-plan if required
-↓
-milestone loop
-↓
-complete
-```
-
-です。
-
----
-
-# Git policy
-
-Git操作は極めて保守的にしてください。
-
-禁止:
-
-```text
-git reset --hard
-git clean -fd
-git push
-git push --force
-automatic destructive checkout
-automatic stash of user work
-```
-
-remote操作は禁止です。
-
-Harness workflow開始時に未コミットの利用者変更が存在する場合、原則としてfail-fastしてください。
-
-自動的に破棄、stash、commitしないでください。
-
-作業中断・milestone failure 時は、git add もせず、working tree と evidence をそのまま残してください。commit は検証済み milestone の checkpoint のみとし、例外は初期セットアップとユーザー指示に起因する PROJECT.md の仕様変更のみです。途中経過を例外の commit に混ぜてはいけません。
-
----
-
-# Milestone checkpoint
-
-各milestoneは、
-
-```text
-implementation complete
-+
-required review successful
-+
-build successful
-+
-all required verification successful
-```
-
-の場合だけHarnessがlocal commitしてください。
-
-Agent自身にはcommitさせないでください。
-
-commit messageにはmachine-readable trailerを入れてください。
-
-例えば、
-
-```text
-harness: complete M02
-
-Harness-Milestone: M02
-Harness-Spec-Hash: sha256:...
-Harness-AC: AC-F002-003, AC-F002-004
-Harness-Verification-Run: <run-id>
-```
-
-Git commitはverified checkpointです。
-
-単なる「Agent作業終了」をcheckpointにしてはいけません。
-
----
-
-# Spec revision commit
-
-ユーザー指示に起因する Product Change によって `PROJECT.md` を更新した場合のみ、validation 成功後に milestone とは別の spec revision commit を作ってください。対象は `PROJECT.md` に限定し、途中の実装変更を含めてはいけません。
-
-例えば、
-
-```text
-harness(spec): define Copper Press behavior
-```
-
-です。
+次の Codex 実装には E2E failure report を入力として渡す。
 
 これにより、
 
 ```text
-PROJECT v1
-  M01
-  M02
-
-PROJECT v2
-  M03
-```
-
-という履歴をGit上で明確にしてください。
-
----
-
-# State and artifacts
-
-generated stateは `.harness-state/` 以下へ保存してください。
-
-概ね、
-
-```text
-.harness-state/
-├── state.json
-├── spec/
-│   ├── index.json
-│   └── projections/
-├── plans/
-├── reviews/
-├── runs/
-└── evidence/
-```
-
-です。
-
-generated artifactを削除しても製品仕様を失わない構造にしてください。
-
-少なくともspec projectionは、
-
-```text
-PROJECT.md + current Harness version
-```
-
-から再生成できなければなりません。
-
----
-
-# Spec hash and invalidation
-
-`PROJECT.md`変更前後をdeterministicに比較してください。
-
-少なくとも、
-
-- unchanged AC
-- changed AC
-- added AC
-- removed AC
-
-を取得してください。
-
-changed ACはverified stateを自動継承してはいけません。
-
-Constraintやcross-cutting requirementの変更などimpactが広い場合は、過度に賢い意味推論を作らず、安全側に再検証してください。
-
-過去のverified milestone commitを書き換えてはいけません。
-
-修正が必要なら新しいmilestoneを作ってください。
-
----
-
-# Verification architecture
-
-可能な限りdeterministic verificationをAI判断より優先してください。
-
-AI reviewerはdeterministic failureを上書きできません。
-
-Verification順序は原則、
-
-```text
-Static
+実装
 ↓
-Unit
-↓
-Code Review
-↓
-Build
-↓
-GameTest
-↓
-E2E
-↓
-Visual / Persistence / Multiplayer
-```
-
-です。
-
-Minecraft runtimeを最も高コストなverificationとして最後まで遅延してください。
-
----
-
-# Static/resource validation
-
-Minecraftを起動する前に可能な範囲を検査してください。
-
-少なくとも拡張可能な責務として、
-
-- JSON syntax
-- known resource reference consistency
-- generated resource existence where deterministic
-- duplicate identifiers
-- obvious invalid asset paths
-
-を扱える設計にしてください。
-
-ただしMinecraft resource systemの完全な再実装はしないでください。
-
-Harness自身がMinecraft parserになる必要はありません。
-
----
-
-# GameTest
-
-GameTestが利用できるprojectでは、client不要なMinecraft logicの検証に使用してください。
-
-Gradle taskはproject configまたはunambiguous detectionから取得してください。
-
-Minecraft GUIを起動する前にGameTestを完了させてください。
-
----
-
-# E2E convention
-
-Harness repositoryに特定ModのE2Eを含めてはいけません。
-
-project側に、
-
-```text
-tests/e2e/
-```
-
-というconventionを定義してください。
-
-過剰な独自DSLは作らないでください。
-
-例えば、
-
-```text
-tests/e2e/manifest.json
-tests/e2e/scenarios/*.mjs
-```
-
-程度で構いません。
-
-manifestは、
-
-- scenario id
-- covered AC IDs
-- verification types
-- command
-
-を宣言できるようにしてください。
-
-Harnessはscenario commandを実行し、machine-readable resultを回収してください。
-
----
-
-# MC Pilot
-
-Minecraft runtime automationはMC Pilotを使用する前提です。
-
-MC Pilot専用処理は一つの薄いadapterへ閉じ込めてください。
-
-Harness内部の他の部分が `mct` CLIの細部へ依存しないようにしてください。
-
-もし実装環境に `mct` が存在する場合は、まず実際の `mct --help` / relevant subcommand helpを確認して現在のCLI contractに合わせてください。
-
-存在しない場合、
-
-- コマンドを推測して「動作確認済み」としない
-- process runnerを注入可能な小さな境界として実装
-- fake executableを使ったHarness unit/integration testを作る
-- `doctor`ではMC Pilot unavailableと正しく報告する
-
-ようにしてください。
-
-MC Pilotそのものをvendorしないでください。
-
----
-
-# Minecraft runtime budget
-
-Implementation Agentが自由にclientを起動できないようにしてください。
-
-runtime起動はHarnessが必要verificationから判断します。
-
-MC Pilotの検査用worldはスーパーフラット固定とし、同一実装プロジェクトではmilestone・再検証・process restartをまたいで同じworldを使い回してください。
-
-Milestone planning時にもMinecraft起動コストを考慮してください。
-
-通常milestoneについて、
-
-- staticだけならruntimeなし
-- unitだけならruntimeなし
-- gametestだけならclient runtimeなし
-- e2e/visualならruntimeあり
-- persistenceなら必要なprocess restartを許可
-- multiplayerなら必要なserver/multi-client構成を許可
-
-という原則です。
-
-「少し変更 → client起動 → screenshot → 少し変更」を標準workflowにしないでください。
-
----
-
-# Visual verification
-
-Visual verificationは画像でしか十分判断できないACだけに使用してください。
-
-画像で判定してはいけない例:
-
-- client processが生きている
-- GUIがopen状態である
-- inventory count
-- block state
-- server connection
-- entity state
-
-これらはmachine-readable assertionで確認してください。
-
-画像で判定する例:
-
-- missing texture
-- broken model
-- UV error
-- texture orientation
-- clipping
-- overlap
-- text overflow
-- unintended transparency
-- z-fighting
-- malformed GUI layout
-- visual mismatch against explicit AC
-
-Visual review前にmachine-readable preconditionを成功させてください。
-
-Claudeへ渡す入力は最小化してください。
-
-例えば、
-
-```text
-AC text
-+
-machine observations
-+
-relevant screenshot
-```
-
-だけです。
-
-PROJECT.md全文、repository全文、巨大なlatest.log全文を毎回渡さないでください。
-
----
-
-# Evidence
-
-EvidenceはrunとACに紐付けてください。
-
-例:
-
-```text
-.harness-state/evidence/<run-id>/
-├── manifest.json
-├── AC-F001-001/
-│   └── result.json
-├── AC-F002-003/
-│   ├── result.json
-│   └── screenshot.png
-└── runtime.log
-```
-
-最低限、
-
-- AC ID
-- spec hash
-- milestone
-- verification type
-- result
-- relevant artifact paths
-
-を追跡してください。
-
-失敗evidenceを失敗を隠す目的で削除しないでください。
-
----
-
-# Persistence verification
-
-`persistence` verificationは同一process内のstate確認だけで成功にしないでください。
-
-必要な場合、
-
-```text
-state setup
-↓
-save
-↓
-process stop
-↓
-process restart
-↓
-world reload
-↓
-state assertion
-```
-
-を要求してください。
-
----
-
-# Multiplayer verification
-
-`multiplayer` verificationは単一clientからの見かけだけで成功にしないでください。
-
-必要な場合、
-
-```text
-Client A action
-↓
-Server state
-↓
-Client B observation
-```
-
-を検証できるE2E contractを用意してください。
-
----
-
-# Completion
-
-全active ACの必要verificationが成功し、各milestoneの検証済みlocal checkpointが揃い、working treeがcleanならcompleteにしてください。
-
-
-Milestone中に別milestoneの未実装作業を先取りする必要はありません。過去checkpointを改変せず、必要なfixは新しいmilestoneとして扱ってください。
-
----
-
-# Fail-fast policy
-
-明確な前提違反を自動修復しないでください。
-
-例:
-
-- invalid PROJECT.md
-- duplicate ID
-- unknown verification type
-- missing Gradle wrapper
-- missing required task
-- ambiguous task detection
-- invalid state schema
-- dirty working tree where clean tree is required
-- reviewer modified files
-- Implementation Agent modified PROJECT.md
-- unsupported Harness contract
-
-は明確な理由を出して停止してください。
-
-以下は作らないでください。
-
-- corrupted JSON guessing repair
-- legacy schema migration
-- old config alias
-- unknown Gradle task fallback chain
-- old project layout exhaustive search
-- broken checkpoint guessing recovery
-
----
-
-# Version policy
-
-Harnessはcurrent/latest contractだけを正式サポートします。
-
-後方互換性frameworkは作らないでください。
-
-- legacy CLI aliases不要
-- old state reader不要
-- old schema migration不要
-- legacy PROJECT parser不要
-- compatibility adapter不要
-
-Git上で古いHarness revisionをcheckoutできることと、最新Harnessが古いstateを読めることは別です。
-
-projectは `.harness` submodule pointerによって利用Harness revisionを固定します。
-
----
-
-# Harness self-tests
-
-Minecraft、Codex、Claude、MC Pilotの実環境がなくてもHarnessの大部分を検証できるようにしてください。
-
-最低限、次をtestしてください。
-
-## Spec
-
-- valid PROJECT.md parse
-- invalid structure
-- duplicate Feature ID
-- duplicate Requirement ID
-- duplicate AC ID
-- unknown verification type
-- projection determinism
-- projection tamper detection
-- spec diff
-- changed AC invalidation
-
-## Project
-
-- init does not overwrite existing PROJECT.md
-- init generates PROJECT.md when absent
-- config creation
-- gitignore handling
-- Project Contract failure
-
-## Planning
-
-- every milestone references existing AC
-- unknown AC rejected
-- unassigned active AC rejected
-- blocked AC handling
-- structured plan schema validation
-
-## Agents
-
-fake `codex` executableとfake `claude` executableをPATHへ置く方式などで、
-
-- subprocess execution
-- structured output parsing
-- invalid output
-- nonzero exit
-- Implementation Agent changing PROJECT.md detection
-- Review Agent modifying files detection
-
-をtestしてください。
-
-## Git
-
-temporary Git repositoryを使用して、
-
-- dirty tree protection
-- no destructive operation
-- verified checkpoint commit
-- commit trailers
-- no commit on failed verification
-
-をtestしてください。
-
-## Verification
-
-fake Gradle / fake scenario commandsを使って、
-
-- gate order
-- build failure stops runtime
-- GameTest failure stops runtime
-- e2e result collection
-- evidence generation
-- completion
-
-をtestしてください。
-
-外部CLIがないことを理由にHarnessのcore testsをskipしないでください。
-
----
-
-# CI
-
-GitHub Actionsを用意してください。
-
-最低限、
-
-```text
-npm ci
-typecheck
-test
 build
+↓
+review
+↓
+E2E failure
+↓
+checkpoint へ復元
+↓
+failure report を基に再実装
 ```
 
-を実行してください。
-
-実Minecraft、Codex、Claude、MC PilotをCI必須にはしないでください。
+を自動反復する。
 
 ---
 
-# Documentation
+# 23. Review と Failure の区別
 
-最低限以下を作成してください。
+レビューによる指摘は candidate を改善する通常工程として扱う。
+
+次の状態では同じ candidate 上で修正を継続する。
+
+- code review issue が残っている
+- visual review issue が残っている
+
+次の状態では attempt を失敗として扱い、直前 checkpoint へ復元する。
+
+- compile failure
+- build failure
+- E2E assertion failure
+- Minecraft 実行中の crash
+- scenario process failure
+- candidate の実行継続が成立しない runtime failure
+
+この区別により、レビュー修正は高速に反復し、実行結果の失敗は常に既知の checkpoint から再構築する。
+
+---
+
+# 24. Checkpoint
+
+milestone が次の条件を満たした場合、Harness が Git commit を作成する。
 
 ```text
-README.md
-docs/architecture.md
-docs/project-specification.md
-docs/code-quality.md
-docs/review-policy.md
-docs/verification.md
-docs/runtime.md
+compile 成功
++
+build 成功
++
+code review の全 issue が closed
++
+対象 Acceptance Criterion の E2E 成功
++
+visual issue が存在する場合は全 issue が closed
 ```
 
-## README
+commit は milestone checkpoint として扱う。
 
-次を説明してください。
-
-- Harnessとは何か
-- 何を正本とするか
-- create
-- init
-- PROJECT.md
-- plan
-- develop
-- checkpoint model
-- external dependencies
-- current limitations
-
-## project-specification.md
-
-Mod作者向けにPROJECT.mdの書き方を説明してください。
-
-特に、
-
-- Feature
-- Requirement
-- AC
-- Preconditions
-- Action
-- Expected Result
-- Verification
-- Open Questions
-
-の書き方を具体例付きで説明してください。
-
-実装方法ではなく観測可能な挙動を書くことを明記してください。
-
-## code-quality.md
-
-Implementation Agent向けに、
-
-- current requirements only
-- no speculative abstraction
-- direct NeoForge API preferred
-- readability over cleverness
-- minimal conceptual complexity
-- no unnecessary defensive code
-
-を明記してください。
-
-## review-policy.md
-
-Claude reviewer向け基準を明記してください。
-
----
-
-# Harness Acceptance Criteria
-
-少なくとも以下を満たしてください。
-
-HAR-AC-001  
-`PROJECT.md` にFeature、Requirement、ACを直接記述できる。
-
-HAR-AC-002  
-Harness は `PROJECT.md` と矛盾しない補足 AC を Spec Editor 経由で正本へ追加できる。派生仕様や計画にだけ独立した製品 AC を保持しない。
-
-HAR-AC-003  
-派生仕様は `PROJECT.md` の内容だけから決定的に再生成できる。
-
-HAR-AC-004  
-派生仕様への直接変更を `validate` が検出する。
-
-HAR-AC-005  
-Agent Chatの機能追加要求が最初に `PROJECT.md` へ反映される。
-
-HAR-AC-006  
-`PROJECT.md` 更新後に派生仕様が更新される。
-
-HAR-AC-007  
-実装計画のすべてのmilestoneが `PROJECT.md` のACに対応する。
-
-HAR-AC-008  
-一つのmilestone成功ごとにlocal commitが作成される。
-
-HAR-AC-009  
-未検証milestoneはcommit済みcheckpointとして扱わない。
-
-HAR-AC-010  
-全active ACの検証済みcheckpointが揃った時点でcompleteとなる。
-
-HAR-AC-011  
-新規projectは指定されたNeoForge repository/refを基礎として作成される。
-
-HAR-AC-012  
-Harness repositoryはNeoForge templateを内包しない。
-
-HAR-AC-013  
-新規projectにはHarnessが `.harness` submoduleとして追加される。
-
-HAR-AC-014  
-既存NeoForge projectにHarness submoduleとinitを適用すると、新規作成projectと同一Project Contractになる。
-
-HAR-AC-015  
-runtimeはprojectの生成経路を判定材料にしない。
-
-HAR-AC-016  
-最新Harnessは旧artifact/state formatの互換性を保証しない。
-
-HAR-AC-017  
-unsupported stateは推測修復せずfail-fastする。
-
-HAR-AC-018  
-Harnessはremote Git操作を行わない。
-
-HAR-AC-019  
-Implementation Agentは `PROJECT.md` を変更しない。
-
-HAR-AC-020  
-Product仕様変更はUser Requestから `PROJECT.md` 更新を経由する。
-
-HAR-AC-021  
-`PROJECT.md`変更で過去の検証済みmilestone commitを書き換えない。
-
-HAR-AC-022  
-最終状態では `PROJECT.md` のすべての有効ACにverification evidenceが存在する。
-
----
-
-# Important implementation strategy
-
-まずrepositoryを調査してください。
-
-既存実装が存在する場合、
-
-- 有用な部分を維持する
-- このcontractと矛盾する旧設計だけを削除または置換する
-- 互換性のためだけに旧設計を残さない
-
-ようにしてください。
-
-その後、内部で実装順序を決め、最後まで実行してください。
-
-推奨する実装順序は、
+commit message には少なくとも次を含む。
 
 ```text
-1. project/config/types
-2. PROJECT parser + validator
-3. deterministic projection
-4. state model
-5. Git safety/checkpoint
-6. planner schema
-7. Codex adapter
-8. Claude reviewer
-9. Gradle verification
-10. milestone state machine
-11. E2E/evidence
-12. MC Pilot boundary
-13. completion
-14. create/init
-15. CLI polish
-16. docs
-17. tests/CI
-18. self-review
+Harness-Milestone: M01
+Harness-AC: AC-F001-001, AC-F001-002
+Harness-Attempt: 3
 ```
 
-ですが、既存repository状態を見て合理的に変更して構いません。
+次の milestone は、この checkpoint を開始地点とする。
 
 ---
 
-# External CLI handling
+# 25. 失敗からの自動復旧
 
-Codex、Claude、MC PilotのCLI optionは変化し得ます。
+milestone 実行中の recoverable failure に対して Harness は自動復旧する。
 
-実装環境にCLIがインストールされている場合は、実際に
+処理は次のとおりである。
 
 ```text
-<command> --help
+failure 検出
+   ↓
+failure report 保存
+   ↓
+直前 checkpoint を特定
+   ↓
+working tree を checkpoint 状態へ完全復元
+   ↓
+milestone attempt state を初期化
+   ↓
+failure report を Codex へ追加
+   ↓
+同一 milestone を再実行
 ```
 
-等を確認して現在のcontractに合わせてください。
+作業途中に追加された source、resource、生成物も candidate の一部として破棄対象とする。
 
-存在しない場合は、推測したoptionを「検証済み」と扱わないでください。
+Harness が保存する failure report や実行ログは checkpoint 復元後も保持する。
 
-CLI-specific argument constructionを一箇所へ閉じ込め、fake executableでtestしてください。
-
----
-
-# Do not fake completeness
-
-外部Minecraft runtimeやCLIが利用できないため実E2Eを実行できなかった場合、
-
-「実装済み」と「実環境で検証済み」を区別してください。
-
-unit/integration testで境界を検証することは構いませんが、実Minecraftで確認していないものを確認済みと報告してはいけません。
-
-READMEのCurrent Limitationsにも正確に記述してください。
+再試行回数には上限を設けず、milestone が成功するまで反復する。
 
 ---
 
-# Final self-review
+# 26. Fatal Error
 
-実装終了前に必ず自分のdiffをレビューしてください。
+自動的な実装反復によって解決する対象と、実行基盤そのものが成立しない状態を区別する。
 
-特に以下を探してください。
+次のような状態を fatal error とする。
 
-- unnecessary abstraction
-- unnecessary interfaces
-- wrapper proliferation
-- duplicated concepts
-- dead code
-- speculative config
-- unused extension points
-- broad catch
-- silent fallback
-- destructive Git behavior
-- source-of-truth violations
-- PROJECT.mdをAI生成物から復元しようとする設計
-- stateがconversation historyに依存する設計
-- reviewerがsourceを書き換えられる経路
-- agentがcommitできる経路
-- Minecraft起動がImplementation Agentへ露出している経路
+- `PROJECT.md` が実行可能な仕様として解釈できない
+- 必須設定が欠落している
+- 必須 executable が存在しない
+- Git repository を利用できない
+- checkpoint への復元に失敗する
+- Harness の実行状態を読み取れない
+- runtime の接続先や deployment target を決定できない
+- Harness 実行中に Harness 本体が変更された
+- 外部ツールとの入出力契約が成立せず処理を継続できない
 
-見つけた場合は修正してください。
+fatal error 発生時は `develop` を停止し、原因を利用者へ表示する。
+
+コードのコンパイル失敗、製品挙動の不一致、レビュー指摘など、実装によって改善できる事象は自動反復の対象とする。
 
 ---
 
-# Completion criteria for this task
+# 27. Git
 
-このrepositoryのone-shot実装は最低限、
+Git は milestone の既知状態を保持するために使用する。
+
+`develop` 開始時には clean working tree を要求する。
+
+各 milestone の成功時に Harness が checkpoint commit を作成する。
+
+recoverable failure 時は直前 checkpoint まで working tree を完全に戻す。
+
+これにより各 milestone は常に、
 
 ```text
-npm install
-npm run typecheck
-npm test
-npm run build
+検証済み checkpoint
+   ↓
+candidate
+   ↓
+成功 → 新 checkpoint
+
+または
+
+検証済み checkpoint
+   ↓
+candidate
+   ↓
+失敗 → 元 checkpoint
 ```
 
-が成功し、
-
-主要CLIが `--help` まで動作し、
-
-READMEと設計文書が現在の実装と一致し、
-
-HAR-AC-001〜HAR-AC-022について、
-
-- implemented
-- partially implemented
-- blocked by unavailable external runtime
-
-のいずれかを正確に自己評価できる状態で完了とします。
-
-可能なHAR-ACはすべて実装してください。
-
-単なるscaffold、TODO一覧、interfaceだけを作って完了してはいけません。
-
-未完部分がある場合も、core architectureとテスト可能な境界まで実装し、何が不足しているかを具体的に記録してください。
-
-最終的に、一時環境でNeoForge Projectをinitし、このHarnessでexamplemodがE2Eテストできることまで確認してください。
+という単純な lifecycle を持つ。
 
 ---
 
-# Final response
+# 28. Harness State
 
-作業終了後の回答は簡潔にしてください。
+実行中の情報は `.harness-state/` に保存する。
 
-次だけ報告してください。
+利用者から見て必要な情報は次の程度とする。
 
-1. 実装した主要機能
-2. 主要な設計判断
-3. 実行したtest/buildと結果
-4. 実環境で未検証のexternal integration
-5. 残っているblocking issueがあればその内容
+```text
+current plan
+current milestone
+current attempt
+current phase
+last checkpoint
+review issues
+failure reports
+E2E results
+logs
+screenshots
+```
 
-実装内容の長い再説明は不要です。
+`.harness-state/` は実装途中の状態と診断情報を保持する作業領域として扱う。
 
-計画を提示して終了せず、今このrepositoryへ実装してください。
+Git checkpoint には製品コードと製品仕様を記録し、実行ログ等は state 領域に保持する。
+
+---
+
+# 29. `harness chat`
+
+`chat` は自然言語による製品仕様変更に使用する。
+
+例:
+
+```sh
+harness chat "Mechanical Press の処理時間を100 tickに変更する"
+```
+
+Harness は要求を `PROJECT.md` の Feature、Requirement、Acceptance Criterion に反映する。
+
+参考コードを指定する場合は次の形式を使用する。
+
+```sh
+harness chat \
+  "この機械と同じ inventory 挙動にする" \
+  --reference src/main/java/example/ExistingMachine.java
+```
+
+仕様変更後は `validate` を実行し、新しい plan を生成する。
+
+---
+
+# 30. Minecraft Runtime
+
+E2E では専用の NeoForge server と client を使用する。
+
+Harness は設定された runtime を使用して次を実行する。
+
+```text
+Mod 配置
+server 起動
+client 起動
+world 接続
+scenario 操作
+状態観測
+screenshot
+log 取得
+runtime 終了
+```
+
+scenario の要求に応じて、
+
+- server restart
+- client restart
+- world reload
+- 複数 client 接続
+
+なども通常の scenario 操作として実行する。
+
+---
+
+# 31. Runtime World
+
+E2E 用 world は Harness 専用の固定 world を使用する。
+
+world は milestone 間で再利用できる。
+
+scenario が初期状態を必要とする場合は scenario 自身が必要な状態を準備する。
+
+保存後の再読み込みを要求する Acceptance Criterion では、同じ world を再起動後に読み込んで結果を確認する。
+
+---
+
+# 32. 実行ログ
+
+Harness は compile/build、AI agent、Minecraft runtime、scenario の実行結果を保存する。
+
+主な用途は次のとおりである。
+
+- Codex の再実装入力
+- fatal error の診断
+- 利用者による失敗原因確認
+- checkpoint に至るまでの履歴確認
+
+ログ保存は開発ワークフローの診断補助を目的とし、milestone 完了条件そのものは E2E の観測結果とレビュー状態から判断する。
+
+---
+
+# 33. 完了条件
+
+プロジェクトは次の条件を満たした時点で `complete` となる。
+
+1. plan 内の全 milestone が checkpoint を持つ。
+2. 全 active Acceptance Criterion がいずれかの完了済み milestone に含まれる。
+3. 最終 milestone の E2E が成功している。
+4. 最終 checkpoint が作成されている。
+5. working tree が最終 checkpoint と一致している。
+
+完了後、`harness status` は `complete` を表示する。
+
+---
+
+# 34. 全体状態遷移
+
+通常系は次のとおりである。
+
+```text
+idle
+ ↓
+planning
+ ↓
+implementing
+ ↓
+building
+ ↓
+reviewing
+ ↓
+e2e
+ ↓
+checkpointing
+ ↓
+次 milestone
+ ↓
+...
+ ↓
+complete
+```
+
+compile/build または E2E の失敗時は次の遷移を行う。
+
+```text
+building / e2e
+ ↓
+retrying
+ ↓
+checkpoint restore
+ ↓
+implementing
+```
+
+レビュー指摘時は次の遷移を行う。
+
+```text
+reviewing
+ ↓
+implementing
+ ↓
+building
+ ↓
+reviewing
+```
+
+visual review 修正時は次の遷移を行う。
+
+```text
+e2e
+ ↓
+visual review
+ ↓
+implementing
+ ↓
+building
+ ↓
+reviewing
+ ↓
+e2e
+ ↓
+visual review
+```
+
+実行基盤に継続不能な問題が発生した場合は次の状態となる。
+
+```text
+fatal
+```
+
+---
+
+# 35. 標準利用フロー
+
+利用者による標準操作は次のとおりである。
+
+```sh
+harness init
+
+harness doctor
+
+# PROJECT.md を作成・編集
+
+harness validate
+
+harness plan
+
+harness develop
+```
+
+`develop` 開始後は Harness が milestone を順番に処理する。
+
+途中で compile/build や E2E が失敗した場合も、Harness が checkpoint 復元と再実装を自動的に反復する。
+
+利用者による通常の操作は、完了後の成果確認、または fatal error 発生時の環境・仕様修正となる。
+
+---
+
+# 36. プロトタイプとしての対象範囲
+
+本 Harness は、正常なプロジェクト設定と、実装中に発生する一般的な失敗からの自動復旧を主要対象とする。
+
+主要な対象シナリオは次のとおりである。
+
+- 正常に実装できる milestone
+- compile error を修正して成功する milestone
+- build error を修正して成功する milestone
+- Claude のレビュー指摘を反復修正する milestone
+- E2E assertion failure を基に再実装する milestone
+- visual issue を反復修正する milestone
+- server/client の一時的実行失敗後に再試行する milestone
+- 複数 attempt を経て checkpoint に到達する milestone
+
+この実行モデルにより、Harness の主要責務を「仕様を満たす candidate が完成するまで同一 milestone を自動反復すること」に集約する。
