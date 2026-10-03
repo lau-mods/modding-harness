@@ -281,7 +281,7 @@ build
 
 両方が成功した場合にコードレビューへ進む。
 
-compile または build の実行自体が失敗した場合は、失敗時再試行規則を適用する。
+compile または build が失敗した場合は、失敗内容を Codex に渡して修正させる。
 
 ---
 
@@ -544,8 +544,6 @@ Minecraft E2E
 
 対象には次を含む。
 
-- compile process failure
-- build process failure
 - Codex 呼び出し失敗
 - Claude 呼び出し失敗
 - Minecraft server 起動失敗
@@ -647,6 +645,7 @@ Harness が自動的に処理を継続するための前提そのものが失わ
 - 実装計画を読み取れない
 - 直前 checkpoint を復元できない
 - Harness 本体が実行中に変更された
+- `PROJECT.md` が開発実行中に変更された
 - 必須 executable が存在しない
 - Codex または Claude の認証が利用できない
 - Minecraft 実機環境の必須設定が存在しない
@@ -873,7 +872,9 @@ rollback 履歴
 implementation
     ↓
 build
-    ↓
+    ├─ build failure → implementation
+    │
+    ↓ success
 code_review
     ├─ 指摘あり → implementation
     │               ↓
@@ -930,7 +931,7 @@ Harness が自律的に次の処理を決定または実行できない状態。
 1. `PROJECT.md` に製品として期待する挙動を記述する。
 2. Acceptance Criterion の最終確認は Minecraft 実機 E2E で行う。
 3. 実装工程は Codex が担当する。
-4. コードおよび画面の第三者確認は Claude が担当する。
+4. 実装計画、仕様変更、コードおよび画面の第三者確認は Claude が担当する。
 5. Claude の初回レビューで指摘集合を確定する。
 6. 再レビューでは初回指摘の解消だけを判定する。
 7. 指摘が解消するまで実装とレビューを自動的に繰り返す。
