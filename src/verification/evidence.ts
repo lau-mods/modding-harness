@@ -11,8 +11,8 @@ export async function validateEvidence(root: string, spec: ProjectSpec, expected
   const ordered = ['static', 'unit', 'review', 'build', 'gametest', 'e2e'];
   const actual = report.gates.map(gate => gate.gate);
   if (report.gates.some(gate => !gate.passed) || gates.some(gate => !actual.includes(gate)) || actual.some((gate, i) => !ordered.includes(gate) || (i > 0 && ordered.indexOf(gate) <= ordered.indexOf(actual[i - 1]!)))) throw new Error('Verification evidence has missing/failed/out-of-order gates');
-  const review = await readJson(await safePath(root, `.harness-state/reviews/${report.runId}.json`)) as { result: unknown; error: unknown };
-  const verdict = validateSchema<{ verdict: string; issues: { severity: string }[] }>('review', review.result);
+  const review = await readJson(await safePath(root, `.harness-state/reviews/${report.runId}.json`)) as { result: unknown; effectiveReview?: unknown; error: unknown };
+  const verdict = validateSchema<{ verdict: string; issues: { severity: string }[] }>('review', review.effectiveReview ?? review.result);
   if (review.error !== null || verdict.verdict !== 'pass' || verdict.issues.some(issue => issue.severity !== 'minor')) throw new Error('Verification review evidence is not a pass');
   for (const id of coveredAcIds) {
     const ac = spec.acs.find(ac => ac.id === id);

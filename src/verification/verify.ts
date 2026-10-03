@@ -2,15 +2,15 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { git } from '../git/git.js';
-import { save } from '../io.js';
+import { hash, save } from '../io.js';
 import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
 import type { Config } from '../project/config.js';
 import { gradleTasks } from '../project/project.js';
 import type { ProjectSpec } from '../spec/parser.js';
 import { agentContext } from '../spec/projector.js';
-import { allowedImplementationPath, callAgent, sourceContext } from '../agents/agents.js';
-import type { Review } from '../agents/agents.js';
+import { acFingerprint } from '../spec/diff.js';
+import { allowedImplementationPath, callReview, sourceContext } from '../agents/agents.js';
 import type { Milestone } from '../planning/plan.js';
 import type { Phase } from '../state/state.js';
 import { validateResources } from './static.js';
@@ -61,8 +61,9 @@ export async function verify(root: string, config: Config, spec: ProjectSpec, mi
         ...(await git(root, ['diff', '--name-only', '-z', 'HEAD'])).split('\0').filter(allowedImplementationPath),
         ...(await git(root, ['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(allowedImplementationPath),
         ...['tests/verification.json', 'tests/e2e/manifest.json']])];
-      const review = await callAgent(root, config.agents.review, 'review', { specification: agentContext(spec, milestone.acIds), milestone,
-        diff: await git(root, ['diff', '--no-ext-diff', '--no-textconv', 'HEAD']), sources: await sourceContext(root, files) }, path.join(root, '.harness-state/reviews', `${runId}.json`), runner) as Review;
+      const initialFile = path.join(root, '.harness-state/reviews/code', hash(JSON.stringify(milestone.acIds.slice().sort().map(id => [id, acFingerprint(spec, id)]))).slice(7), `${milestone.id}.json`);
+      const review = await callReview(root, config.agents.review, 'review', { specification: agentContext(spec, milestone.acIds), milestone,
+        diff: await git(root, ['diff', '--no-ext-diff', '--no-textconv', 'HEAD']), sources: await sourceContext(root, files) }, path.join(root, '.harness-state/reviews', `${runId}.json`), initialFile, runner);
       if (review.verdict !== 'pass') throw new Error(`Independent review requires changes; see .harness-state/reviews/${runId}.json`);
     });
     await gate('build', () => gradle('build', config.gradle.build));

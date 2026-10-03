@@ -2,7 +2,7 @@ import { copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { snapshot } from '../git/git.js';
-import { exists, safePath, save, json } from '../io.js';
+import { exists, readJson, safePath, save, json } from '../io.js';
 import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
 import { harnessRoot, schema, validateSchema } from '../schema.js';
@@ -65,6 +65,17 @@ export async function callAgent(root: string, config: AgentConfig, role: 'spec-e
   }
   if (failure) throw failure;
   return result;
+}
+
+export async function callReview(root: string, config: AgentConfig, role: 'review' | 'visual', context: object, artifact: string, initialFile: string, runner: Runner = run, images: string[] = []): Promise<Review> {
+  const initialReview = await exists(initialFile) ? validateSchema<Review>('review', await readJson(initialFile)) : null;
+  let review = await callAgent(root, config, role, { ...context, initialReview }, artifact, runner, images) as Review;
+  if (initialReview) {
+    const issues = review.issues.filter(issue => issue.severity === 'blocking' || (issue.initialIssue != null && issue.initialIssue <= initialReview.issues.length));
+    review = { verdict: issues.some(issue => issue.severity !== 'minor') ? 'changes_required' : 'pass', issues };
+  } else await save(initialFile, review);
+  await save(artifact, { ...await readJson(artifact) as object, initialReview: path.relative(root, initialFile), effectiveReview: review });
+  return review;
 }
 
 export function allowedImplementationPath(file: string): boolean {

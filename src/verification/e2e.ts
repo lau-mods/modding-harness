@@ -7,8 +7,7 @@ import { validateSchema } from '../schema.js';
 import type { ProjectSpec, Verification } from '../spec/parser.js';
 import { acFingerprint } from '../spec/diff.js';
 import type { Config } from '../project/config.js';
-import { callAgent } from '../agents/agents.js';
-import type { Review } from '../agents/agents.js';
+import { callReview } from '../agents/agents.js';
 import { McPilot, pilotEnv } from '../runtime/mc-pilot.js';
 
 export class ScenarioError extends Error {}
@@ -100,13 +99,7 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
             }
             const reviewFile = path.join(dir, `${id}-${scenario.id}-visual.json`);
             const initialFile = path.join(root, '.harness-state/reviews/visual', acFingerprint(spec, id).slice(7), `${id}-${scenario.id}.json`);
-            const initialReview = await exists(initialFile) ? validateSchema<Review>('review', await readJson(initialFile)) : null;
-            let review = await callAgent(root, config.agents.review, 'visual', { ac: ac.source.raw, observations: result.assertions, screenshots: images.map((_, i) => `screenshot-${i + 1}.png`), initialReview }, reviewFile, runner, images) as Review;
-            if (initialReview) {
-              const issues = review.issues.filter(issue => issue.severity === 'blocking' || (issue.initialIssue != null && issue.initialIssue <= initialReview.issues.length));
-              review = { verdict: issues.length ? review.verdict : 'pass', issues };
-            } else await save(initialFile, review);
-            await save(reviewFile, { ...await readJson(reviewFile) as object, initialReview: path.relative(root, initialFile), effectiveReview: review });
+            const review = await callReview(root, config.agents.review, 'visual', { ac: ac.source.raw, observations: result.assertions, screenshots: images.map((_, i) => `screenshot-${i + 1}.png`) }, reviewFile, initialFile, runner, images);
             if (review.verdict !== 'pass') throw new ScenarioError(`Visual review failed: ${id}`);
             artifacts.push(path.relative(root, reviewFile));
           }

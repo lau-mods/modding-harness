@@ -124,8 +124,9 @@ export async function developProject(root: string, runner: Runner = run): Promis
         // One bounded repair after structured code-review feedback; deterministic failures stop immediately.
         for (let attempt = 0; attempt < 2; attempt++) {
           await setPhase(root, state, 'implementation');
-          const previousReview = state.reviewFeedback?.milestone === milestone.id
-            ? (await readJson(path.join(root, '.harness-state/reviews', `${state.reviewFeedback.runId}.json`)) as { result: Review }).result : null;
+          const priorReview = state.reviewFeedback?.milestone === milestone.id
+            ? await readJson(path.join(root, '.harness-state/reviews', `${state.reviewFeedback.runId}.json`)) as { result: Review; effectiveReview?: Review } : null;
+          const previousReview = priorReview?.effectiveReview ?? priorReview?.result ?? null;
           const changes = await callAgent(root, config.agents.implementation, 'implementation', {
             specification: agentContext(spec, milestone.acIds), milestone, sources: await sourceContext(root, [...milestone.sourceFiles, 'tests/verification.json', 'tests/e2e/manifest.json']), previousReview,
             verificationContract: await readFile(new URL('../docs/verification.md', import.meta.url), 'utf8'),
@@ -136,8 +137,8 @@ export async function developProject(root: string, runner: Runner = run): Promis
           if (!result.passed) {
             const reviewFile = path.join(root, '.harness-state/reviews', `${result.runId}.json`);
             if (result.gates.at(-1)?.gate === 'review' && await exists(reviewFile)) {
-              const review = await readJson(reviewFile) as { result: Review | null; error: string | null };
-              if (!review.error && review.result?.verdict === 'changes_required') {
+              const review = await readJson(reviewFile) as { result: Review | null; effectiveReview?: Review; error: string | null };
+              if (!review.error && (review.effectiveReview ?? review.result)?.verdict === 'changes_required') {
                 state.reviewFeedback = { milestone: milestone.id, runId: result.runId };
                 await saveState(root, state);
                 if (attempt === 0) continue;
