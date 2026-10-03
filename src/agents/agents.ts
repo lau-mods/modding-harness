@@ -44,7 +44,7 @@ export async function callAgent(root: string, config: AgentConfig, role: 'spec-e
   try {
     for (const [i, file] of images.entries()) await copyFile(file, path.join(dir, `screenshot-${i + 1}.png`));
     const policy = await readFile(path.join(harnessRoot, `prompts/${role}.txt`), 'utf8');
-    const input = `${policy}\n\n${json(context)}\n${images.length ? 'Read each attached screenshot-N.png using Read before returning the review.' : ''}`;
+    const input = `${policy}\nThe .harness submodule is immutable throughout this workflow, including failure handling and retries. Do not edit its source, configuration, prompts, dependencies or generated files, run installation/build commands in it, or change its Git state or submodule reference.\n\n${json(context)}\n${images.length ? 'Read each attached screenshot-N.png using Read before returning the review.' : ''}`;
     if (input.length > 1_000_000) throw new Error('Agent context exceeds 1 MB; narrow the milestone sourceFiles');
     const schemaFile = path.join(dir, 'schema.json'), output = path.join(dir, 'output.json');
     if (!reviewer) await writeFile(schemaFile, json(codexOutputSchema(role)));

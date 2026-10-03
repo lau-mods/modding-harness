@@ -8,6 +8,8 @@ milestone 検証は Static → Unit → Claude review → Build → GameTest →
 
 commit は milestone の全検証が成功した checkpoint 作成時だけ許可します。例外は初期セットアップと、ユーザー指示に起因する PROJECT.md の仕様変更 commit のみです。作業中断・検証失敗時の途中経過は、git add・commit・stash・破棄をせず、変更した作業ツリーと evidence をそのまま保持します。途中経過を例外の commit に混ぜてはいけません。外側の Agent にも同じルールを適用します。
 
+Harness 動作中（失敗対応・再試行中を含む）の `.harness` submodule への変更は一切禁止します。外側の Agent にも適用し、source・設定・prompt・依存関係・生成物の変更、install・build、submodule の Git 操作・参照先変更を含みます。検証失敗の回避を目的とした変更も禁止です。
+
 ## Unit / GameTest
 
 `.harness-config.json` の gradle task を実行し、存在を tasks --all で確認します。単一の conventional task のみを自動検出します。AC が要求する unit/GameTest は、導入先の `tests/verification.json` に新鮮な JUnit XML testcase を対応付けてください。

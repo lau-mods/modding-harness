@@ -13,7 +13,7 @@ npm link
 harness --help
 ```
 
-package binary は `harness` です。npm package をインストールして使うか、submodule では `node .harness/dist/cli/main.js` を使います。submodule 自体を install する際は `npm --prefix .harness ci && npm --prefix .harness run build` を実行してください。
+package binary は `harness` です。npm package をインストールして使うか、submodule では `node .harness/dist/cli/main.js` を使います。submodule 自体の install は Harness 起動前の初期準備として `npm --prefix .harness ci && npm --prefix .harness run build` を実行してください。
 
 ## 新規プロジェクト
 
@@ -52,6 +52,8 @@ create で作成した場合は、template 由来のファイルも最初の com
 Harness を操作する外側の Agent も、製品実装は `harness develop` に委ねます。各 milestone の実装 → 検証 → checkpoint が成功してから次へ進み、全 milestone の先行実装、失敗後の直接実装・commit、plan/state の削除・書換えによる再計画は禁止です。単独で実行した Gradle/GameTest の成功を checkpoint と読み替えてはいけません。
 
 ## 仕様変更と checkpoint
+
+Harness 動作中（失敗対応・再試行中を含む）は、外側の Agent・実装 Agent・reviewer を含め、`.harness` submodule を一切変更してはいけません。source・設定・prompt・依存関係・生成物の編集、install・build、Git 操作による submodule の更新や参照先変更も禁止です。不具合や検証失敗の回避も例外にせず、作業ツリーと evidence を保持して停止してください。
 
 ```sh
 harness chat "プレイヤーが要求した製品変更をここに記述"
