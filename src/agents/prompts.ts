@@ -19,9 +19,9 @@ Edit source, resources, build configuration and E2E scenarios as needed.
 Rules:
 - PROJECT.md and the harness installation are read-only during implementation. Any change to them stops the harness.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
-- Prefer the simplest implementation that satisfies the Acceptance Criteria.
-- Write code, comments and documentation as a standalone description of the current behavior. State prohibitions only when they are essential constraints.
-${feedback.length ? `- Address every item in the feedback below. For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a concrete reason when the current code is correct as it is.\n` : ''}
+${feedback.length ? `- Address every item in the feedback below with the smallest change that resolves it, keeping the surrounding code as it is. For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a concrete reason when the current code is correct as it is.\n` : ''}
+${CODE_STYLE}
+
 ${SCENARIO_CONTRACT}
 
 ${block('Milestone', json(input.milestone))}
@@ -80,8 +80,10 @@ Review for:
 - Fulfilment of the target Acceptance Criteria and the milestone goal
 - NeoForge API usage, client/server separation, registration, networking, serialization and state synchronization
 - E2E scenarios: they observe real game state for every Acceptance Criterion and follow the scenario contract
-- Simplicity: the code is the simplest one that works, and code and comments read as a standalone description of the current behavior
-Report concrete problems with the required change. Return an empty list when the implementation is ready.
+- Violations of the code style below, including code that the current behavior leaves unused
+Report concrete problems with the required change. Request changes that bring the code to the Acceptance Criteria and the code style; extra defensive code and generality are outside the review goal. Return an empty list when the implementation is ready.
+
+${CODE_STYLE}
 
 ${SCENARIO_CONTRACT}
 
@@ -128,6 +130,15 @@ ${block('Issues to check', json(issues.map(issueView)))}
 
 ${block('Screenshots', input.screenshots.join('\n'))}`;
 }
+
+const CODE_STYLE = `Code style:
+- Implement exactly what the target Acceptance Criteria require; other behavior belongs to its own milestone.
+- Use vanilla Minecraft and NeoForge mechanisms (registries, JSON resources, existing base classes) before custom code.
+- Keep one direct path per behavior: small classes, direct calls, inline values until a second use appears.
+- Introduce an abstraction, helper or config option only when two call sites use it now.
+- Validate only states the game can produce; rely on Minecraft and NeoForge guarantees.
+- Remove code, resources and comments that the current behavior no longer uses.
+- Names say what the code does; comments say why, describing the current behavior only.`;
 
 const SCENARIO_CONTRACT = `E2E scenario contract:
 - tests/e2e/manifest.json registers scenarios: {"scenarios":[{"id":"press","acIds":["AC-F001-001"],"command":["node","tests/e2e/scenarios/press.mjs"]}]}. Every target Acceptance Criterion needs at least one scenario.
