@@ -1,7 +1,7 @@
 {
   "name": "modding-harness",
-  "version": "1.0.0",
-  "description": "Specification-driven, verified local development for NeoForge projects",
+  "version": "0.1.0",
+  "description": "Autonomous NeoForge mod development harness driven by PROJECT.md",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -11,22 +11,13 @@
   },
   "files": [
     "dist",
-    "schemas",
-    "prompts",
     "templates",
-    "docs",
-    "README.md"
+    "docs"
   ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/*.test.mjs",
-    "prepack": "npm run build"
-  },
-  "dependencies": {
-    "ajv": "^8.17.1",
-    "mdast-util-from-markdown": "^2.0.2",
-    "saxes": "^6.0.0"
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

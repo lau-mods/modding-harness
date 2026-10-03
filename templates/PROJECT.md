@@ -35,10 +35,6 @@ The player action.
 
 Expected Result:
 An observable, unambiguous outcome. Consistent refinements and additional ACs belong in this file first.
-
-Verification:
-- gametest
-Use only the necessary types: unit, gametest, e2e, visual, persistence, multiplayer.
 -->
 
 ## Cross-cutting Requirements

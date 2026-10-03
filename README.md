@@ -1,97 +1,241 @@
 # Modding Harness
 
-NeoForge プロジェクトへ `.harness` Git submodule として導入する、仕様・実装・検証・local checkpoint の開発基盤です。Minecraft Mod テンプレートは内包しません。**AC などの詳細も含む製品仕様の唯一の正本は、導入先の `PROJECT.md` です。** 矛盾しない要件・AC の補足は先に正本へ記録し、そこから派生仕様を決定的に再生成します。
+`PROJECT.md` に書いた製品仕様を起点に、NeoForge Mod の実装、build、コードレビュー、Minecraft 実機 E2E、ローカル Git checkpoint までを自動で進める開発ハーネスです。仕様は [docs/harness-impl.md](docs/harness-impl.md) にあります。
 
-Node.js 20 以上、npm、Git、プロジェクトに適合する Java と Gradle wrapper を使用します。実装／計画／仕様編集には Codex CLI、独立レビューと画像レビューには Claude Code、実 client 操作には MC Pilot を使用します。モデルは integration config の `model: null` で CLI/account default、明示設定で変更できます。
+- 実装: Codex CLI
+- 実装計画・仕様変更・コードレビュー・画面確認: Claude Code
+- Minecraft client 操作: MC Pilot (`mct`)
+- Minecraft server: NeoForge dedicated server (Harness が起動・停止)
 
-```sh
-git clone https://github.com/lau-mods/modding-harness.git
-cd modding-harness
-npm ci
-npm run build
-npm link
-harness --help
-```
+## 必要な環境
 
-package binary は `harness` です。npm package をインストールして使うか、submodule では `node .harness/dist/cli/main.js` を使います。submodule 自体の install は Harness 起動前の初期準備として `npm --prefix .harness ci && npm --prefix .harness run build` を実行してください。
+- Node.js 20 以上、Git
+- 対象 Minecraft に合う Java と、プロジェクトの Gradle wrapper
+- Codex CLI (`codex login` 済み)
+- Claude Code (`claude auth login` 済み)
+- MC Pilot (`mct`)
 
-## 新規プロジェクト
-
-```sh
-harness create ./<project-name> --template-repo <project-name>
-cd my-mod
-```
-
-取得元の default branch の HEAD を使用します。revision を指定する場合は `--template-ref <commit-or-ref>` を追加してください。新しい独立 Git repository に materialize し、この Harness を `.harness` submodule として導入します。テンプレートの Git 履歴は継承しません。create だけは template と Harness を取得する clone/submodule add を行います。通常 workflow は remote Git 操作を一切行いません。push、reset、clean、stash、履歴書き換えは実装していません。
-
-## 既存プロジェクト
-
-```sh
-git submodule add https://github.com/lau-mods/modding-harness.git .harness
-npm --prefix .harness ci
-npm --prefix .harness run build
-node .harness/dist/cli/main.js init
-node .harness/dist/cli/main.js doctor
-```
-
-init は Git/submodule、wrapper、NeoForge plugin、mod metadata を検査します。既存の `PROJECT.md` と `.harness-config.json` は上書きしません。未作成なら [templates/PROJECT.md](templates/PROJECT.md) と integration config を使用し、`.harness-state/` を gitignore に追加します。曖昧な build file・metadata・task は明示 config が必要です。
-
-`PROJECT.md` を [仕様記述ガイド](docs/project-specification.md) に従って記述し、`Status: active`、Open Questions を `None.` にします。手編集後は明示的に projection を再生成してから bootstrap を自分で commit してください。
-
-```sh
-harness validate --refresh-projections
-git add PROJECT.md .harness-config.json .gitignore .gitmodules .harness
-git commit -m "Define project and install harness"
-harness plan
-harness develop
-harness status
-```
-
-create で作成した場合は、template 由来のファイルも最初の commit に含めてください。commit は検証済み milestone の checkpoint に限り、例外は初期セットアップとユーザー指示に起因する PROJECT.md の仕様変更のみです。途中経過を例外の commit に混ぜてはいけません。通常 workflow は dirty tree で開始できません。作業中断・検証失敗時は git add・commit・stash・破棄をせず、作業ツリーと evidence をそのまま保持します。
-
-Harness を操作する外側の Agent も、製品実装は `harness develop` に委ねます。各 milestone の実装 → 検証 → checkpoint が成功してから次へ進み、全 milestone の先行実装、失敗後の直接実装・commit、plan/state の削除・書換えによる再計画は禁止です。単独で実行した Gradle/GameTest の成功を checkpoint と読み替えてはいけません。
-
-## 仕様変更と checkpoint
-
-Harness 動作中（失敗対応・再試行中を含む）は、外側の Agent・実装 Agent・reviewer を含め、`.harness` submodule を一切変更してはいけません。source・設定・prompt・依存関係・生成物の編集、install・build、Git 操作による submodule の更新や参照先変更も禁止です。不具合や検証失敗の回避も例外にせず、作業ツリーと evidence を保持して停止してください。
-
-```sh
-harness chat "プレイヤーが要求した製品変更をここに記述"
-harness chat "既存の加工機に合わせて詳細を補足" --reference src/main/java/example/ExistingPress.java
-harness develop
-```
-
-chat は Spec Editor → deterministic validation → projection 更新 → AC 差分 → local spec revision commit → replan の順に動作します。仕様変更は実装開始前または全 milestone 完了後に行います。実装開始後から完了までは `plan`、`chat`、`validate --refresh-projections` による計画の作り直しを拒否します。未決定事項は draft/Open Questions に残し、開発を blocked にします。手編集も可能ですが、`validate --refresh-projections` と利用者による commit が必要です。通常の `validate` は projection の直接編集をエラーにします。
-
-既存・参考実装や Minecraft/modding の一般的な慣行からほぼ一意に決まる詳細は、明示仕様との整合を保って確認なしに進めます。Spec Editor へ実装を示す場合は `--reference` を必要な project source/test path ごとに指定します。外部 URL の内容は自動取得しないため、必要な抜粋を要求本文へ含めてください。実質的に異なる製品判断が残る場合だけ Open Questions にします。
-
-milestone は既存 AC のみを対象に実装し、Static、Unit、Claude review、Build、GameTest、必要な E2E を通過した候補だけを local commit にします。commit には `Harness-Milestone`、`Harness-Spec-Hash`、`Harness-AC`、`Harness-Verification-Run` trailer が入ります。全 active AC に検証済み checkpoint が揃い、working tree が clean なら complete です。blocked AC がある状態は complete になりません。
-
-plan は全 active AC を網羅します。変更された AC、feature 要件が変わった AC、cross-cutting/constraint 変更の影響を受ける全 AC は検証済み状態を引き継ぎません。過去 checkpoint は残し、新しい milestone を作ります。
-
-この選択的な状態継承は `harness chat` の spec revision に適用します。手編集後の commit を含む Harness 外の commit は、実装途中なら元の plan/state を保持して停止し、再計画しません。実装開始前または完了後なら全 AC の verified 状態を失効させます。古い `PROJECT.md` は ID の出現・削除・廃止のみを調べ、現在の仕様形式で再検証しません。
-
-## 検証と開発
-
-[検証 contract](docs/verification.md)、[runtime 準備](docs/runtime.md)、[アーキテクチャ](docs/architecture.md)、[コード品質](docs/code-quality.md)、[レビュー方針](docs/review-policy.md) を参照してください。
+## インストール
 
 ```sh
 npm install
-npm run typecheck
-npm test
 npm run build
+npm link   # harness コマンドを PATH に追加する
 ```
 
-core tests は fake CLI と一時 Git repository を使用し、Minecraft、Codex、Claude、MC Pilot の実環境がなくても省略せず実行します。GitHub Actions は npm ci/typecheck/test/build を実行します。
+## 使い方
 
-## Current limitations
+### 1. プロジェクトを用意する
 
-- OS support は POSIX (Linux/macOS) です。Windows の Gradle `.bat` 実行／process lifecycle は未対応です。
-- 現行 contract 1 のみを受け付けます。旧 artifact migration、旧 layout 探索、破損 JSON の推測修復はありません。
-- 補足内容が既存仕様と意味的に矛盾しないことや、推定がほぼ一意であることは機械的には証明できません。根拠と明示仕様を優先する prompt、正本の AC のみを completion condition とする schema、独立レビューで制約します。利用者は spec revision diff を確認してください。
-- Agent は隔離された一時 directory、read-only CLI、shell/MCP/plugin 無効化で構造化出力を返します。Harness は前後の Git・source・authoritative generated state を比較し、許可された返却ファイルだけを適用します。これは悪意ある CLI executable やプロジェクト内の Gradle/scenario コードを OS 全体から隔離するセキュリティ境界ではありません。
-- AC ごとの unit/GameTest は `tests/verification.json` に JUnit testcase の対応が必要です。GameTest task が XML を出すように、導入先で設定してください。終了コードだけ、NO-SOURCE、skip されたテストでは AC を検証済みにしません。
-- runtime は利用者が準備した専用 NeoForge server と MC Pilot client を使用します。Minecraft／MC Pilot／loader の installer を内包せず、EULA を自動承認しません。接続先・build artifact deployment・client logs を明示設定してください。
-- runtime の機械観測内容と visual review の品質はプロジェクト側 assertion および reviewer に依存します。resource validation はローカル model/texture 参照等に限定し、Minecraft resource system 全体の再実装はしません。
-- コードレビュー不合格には同一実行内で一度だけ修正を試みます。停止後の dirty candidate の自動 resume はありません。失敗候補・evidence・元の計画を保持して停止し、直接実装・commit・再計画で回避しません。Harness 外の操作を OS レベルで禁止する仕組みではありません。
-- 実環境での実施結果と HAR-AC の自己評価は [実装検証記録](docs/implementation-status.md) を参照してください。fake による成功を実 Minecraft 検証とは表示しません。
+新しく作る場合は NeoForge MDK などのテンプレートから作成します。Harness は `.harness` submodule として追加されます。
+
+```sh
+harness create my-mod --template-repo https://github.com/NeoForgeMDKs/MDK-1.21.1-ModDevGradle.git
+cd my-mod
+```
+
+既存のプロジェクトでは Harness を `.harness` submodule として追加してから `init` を実行します。
+
+```sh
+cd my-mod
+git submodule add https://github.com/lau-mods/modding-harness.git .harness
+harness init
+```
+
+`init` は次の 3 つを用意します。既にあるファイルはそのまま使います。
+
+- `PROJECT.md` (製品仕様のテンプレート)
+- `.harness-config.json` (Harness 設定)
+- `.gitignore` の `.harness-state/` (実行状態と実行記録の置き場所)
+
+### 2. 製品仕様を書く
+
+`PROJECT.md` に Feature、Requirement、Acceptance Criterion を書きます。
+
+```markdown
+##### AC-F001-001: 銅板の加工
+
+Preconditions:
+加工機が設置され、入力スロットに銅インゴットが1個存在する。
+
+Action:
+プレイヤーが加工操作を実行する。
+
+Expected Result:
+入力された銅インゴットが消費され、出力スロットに銅板が1個生成される。
+```
+
+Expected Result は Minecraft 実機の E2E で観測できる結果として書きます。項目を廃止するときは見出しの下に `Status: retired` を書きます。
+
+Project ID、Mod ID、Minecraft / NeoForge / Java の version、1 件以上の Acceptance Criterion がそろい、Open Questions が `None.` になったら `Status: active` にします。`harness validate` で形式と条件を確認できます。
+
+### 3. 実機環境を用意する
+
+E2E では、Harness が NeoForge server を起動し、scenario が MC Pilot で client を操作します。
+
+1. NeoForge server を `.harness-state/runtime/server` にインストールし、`eula.txt` に `eula=true` を書きます。起動コマンドは `runtime.server.command` (既定値 `./run.sh --nogui`) です。
+2. MC Pilot の client を `runtime.clients` の名前で作成します。MC Pilot の home は project 内に置きます。
+
+   ```sh
+   export MCT_HOME=$PWD/.harness-state/runtime/mct-home MCT_CACHE_DIR=$PWD/.harness-state/runtime/mct-cache
+   mct client create harness-a --loader neoforge --version 1.21.1
+   mct client create harness-b --loader neoforge --version 1.21.1
+   ```
+
+3. 依存 Mod があれば、server の `mods/` と各 client の `$MCT_HOME/clients/<name>/minecraft/mods/` に置きます。
+4. `harness doctor` ですべての項目が `ok` になることを確認します。
+
+開発する Mod の jar は、build のたびに Harness が server と全 client の `mods/` へ配置します。world は固定のテスト world (`runtime.world`、既定値 `harness-world`) を使います。
+
+### 4. 開発する
+
+```sh
+git add -A && git commit -m "Define the product"
+harness develop
+```
+
+`develop` は計画が無ければ作成し、全 milestone を順に checkpoint まで進めます。計画だけを先に確認したい場合は `harness plan` を使います。進行状況は別の端末で `harness status` で確認できます。
+
+### 5. 仕様を変更する
+
+```sh
+harness chat "加工時間を40tickから20tickに変更する"
+```
+
+Claude が `PROJECT.md` を更新し、Harness が形式を確認して commit したうえで新しい計画を作ります。仕様変更は開発実行の完了後に行います。
+
+## 開発の流れ
+
+各 milestone は次の順に進みます。
+
+1. Codex が対象 Acceptance Criteria を実装します。source、resource、build 設定、E2E scenario を編集します。
+2. Gradle で compile と build を実行します。失敗した場合はエラー内容を Codex に渡して修正させます。
+3. Claude がコードレビューを行います。初回レビューの指摘 (`CR-001` …) がその milestone の指摘集合になり、2 回目以降はその解消状態だけを判定します。指摘は Codex に渡され、Claude が `resolved` と判定するか、Codex が理由を付けて `accepted` とした時点で解決済みになります。
+4. 実機 E2E を実行します。assertion が期待値と一致しない場合は、実測値・ログ・screenshot を Codex に渡して修正させます。
+5. screenshot が取得された場合、Claude が画面確認を行います。指摘 (`VR-001` …) の扱いはコードレビューと同じです。
+6. すべて解決したら checkpoint commit を作ります。commit には `Harness-Milestone` と `Harness-AC` trailer が付きます。
+
+外部実行 (Codex / Claude の呼び出し、server 起動、MC Pilot、scenario process) が失敗した場合は、同じ状態のまま最大 3 回実行します。3 回とも失敗した場合は直前の checkpoint に戻し、その milestone を最初からやり直します。
+
+次の場合は `fatal` として処理を停止し、原因を表示します。原因を取り除いてから `harness develop` を再実行すると、中断した milestone から再開します。
+
+- 開発実行中に Harness 本体または `PROJECT.md` が変更された
+- 必須のコマンドが見つからない、Codex / Claude の認証が利用できない
+- `PROJECT.md`、設定、計画、実行状態を読み取れない
+- 実機環境 (server、MC Pilot client) の準備が不足している
+- 直前の checkpoint を復元できない
+
+計画は開発実行の開始から完了まで固定されます。開発を完了させずに計画を作り直す場合は、`.harness-state/state.json` を削除してから `harness plan` を実行します。
+
+## E2E scenario
+
+scenario は Codex が実装の一部として作成する、通常の実行可能プログラムです。`tests/e2e/manifest.json` に登録します。
+
+```json
+{
+  "scenarios": [
+    { "id": "press", "acIds": ["AC-F001-001"], "command": ["node", "tests/e2e/scenarios/press.mjs"] }
+  ]
+}
+```
+
+Harness は mod を配置して server を起動し、対象 milestone の Acceptance Criteria に対応する scenario を project root で順に実行し、最後に client と server を停止します。scenario には次の環境変数が渡されます。
+
+| 環境変数 | 内容 |
+|---|---|
+| `HARNESS_MCT` | MC Pilot コマンド |
+| `MCT_HOME`, `MCT_CACHE_DIR` | MC Pilot の home と cache |
+| `HARNESS_CLIENTS` | client 名の JSON 配列 |
+| `HARNESS_SERVER_ADDRESS` | server のアドレス |
+| `HARNESS_WORLD` | テスト world 名 |
+| `HARNESS_SERVER_CONTROL` | server 制御コマンドの JSON argv。末尾に `stop` / `start` を付けて実行すると server を再起動できる |
+| `HARNESS_RESULT_FILE` | 結果 JSON の出力先 |
+| `HARNESS_SCREENSHOT_DIR` | screenshot の出力先 |
+| `HARNESS_SCENARIO_ID`, `HARNESS_AC_IDS` | scenario ID と対象 AC ID の JSON 配列 |
+
+scenario は必要な client を `mct client launch <name> --server $HARNESS_SERVER_ADDRESS` と `mct client wait-ready <name>` で起動し、MC Pilot でゲームを操作して実際の状態を観測します。結果は次の形式で `HARNESS_RESULT_FILE` に書きます。
+
+```json
+{
+  "scenarioId": "press",
+  "passed": true,
+  "assertions": [
+    { "name": "input_consumed", "expected": 0, "actual": 0, "passed": true },
+    { "name": "output_created", "expected": 1, "actual": 1, "passed": true }
+  ],
+  "screenshots": ["output.png"]
+}
+```
+
+scenario の成否は assertion で判定し、1 件以上の assertion がすべて成功したとき成功になります。結果を書いた scenario は、assertion の成否にかかわらず終了コード 0 で終了します。0 以外の終了コードは scenario 自体の実行失敗として再試行の対象になります。
+
+## 設定
+
+`.harness-config.json` の例です。
+
+```json
+{
+  "project": { "buildFile": "build.gradle" },
+  "gradle": { "compile": "classes", "build": "build" },
+  "agents": {
+    "implementation": { "command": "codex" },
+    "review": { "command": "claude", "model": "opus" }
+  },
+  "runtime": {
+    "command": "mct",
+    "server": {
+      "directory": ".harness-state/runtime/server",
+      "command": ["./run.sh", "--nogui"],
+      "address": "127.0.0.1:25565"
+    },
+    "clients": ["harness-a", "harness-b"],
+    "world": "harness-world"
+  }
+}
+```
+
+| 項目 | 内容 |
+|---|---|
+| `gradle.compile`, `gradle.build` | compile と build に使う Gradle task |
+| `agents.implementation` | 実装を担当する Codex CLI。`model` で model を指定できる |
+| `agents.review` | 計画・仕様変更・レビューを担当する Claude Code CLI。`model` で model を指定できる |
+| `runtime.command` | MC Pilot コマンド |
+| `runtime.server` | NeoForge server のディレクトリ (project root からの相対パス)、起動コマンド、アドレス |
+| `runtime.clients` | MC Pilot の client 名 |
+| `runtime.world` | 固定テスト world 名 |
+
+## 実行記録
+
+`.harness-state/` に実行状態と記録を保存します。
+
+| パス | 内容 |
+|---|---|
+| `state.json` | phase、checkpoint、進行中 milestone の指摘集合と E2E 結果、再試行・rollback 履歴 |
+| `plan.json` | 実装計画 |
+| `runs/<時刻>-<連番>-<milestone>-<処理>-<回数>/` | 実行 1 回分の記録。`record.json` (成否と失敗理由)、`command.json`、`stdout.log`、`stderr.log`、agent の `prompt.md` と出力、E2E の結果・screenshot・server / client log |
+| `runtime/` | server、MC Pilot home、mod 配置記録 |
+
+## コマンド
+
+| コマンド | 用途 |
+|---|---|
+| `harness create <dir> --template-repo <repo> [--template-ref <ref>]` | テンプレートから NeoForge プロジェクトを作成し、Harness を `.harness` submodule として追加する |
+| `harness init` | `.harness` submodule を持つプロジェクトを Harness 管理対象として初期化する |
+| `harness doctor` | 必要な開発環境を確認する |
+| `harness validate` | PROJECT.md と Harness 設定を確認する |
+| `harness status` | 現在の実行状態を表示する |
+| `harness chat <request>` | 製品仕様を変更する |
+| `harness plan` | milestone 計画を作成する |
+| `harness develop` | 全 milestone の自動開発を実行する |
+| `harness server start\|stop` | E2E scenario から server を再起動する |
+
+すべてのコマンドは `--project <dir>` で対象プロジェクトを指定できます。既定値はカレントディレクトリです。
+
+## Harness の開発
+
+```sh
+npm run typecheck
+npm test
+```
+
+`npm test` は Codex、Claude、Gradle、MC Pilot、NeoForge server を fake に置き換え、一時 Git リポジトリで `develop` の全工程 (build 失敗、レビューと再レビュー、E2E 失敗、画面確認、rollback、fatal、仕様変更) を実行します。

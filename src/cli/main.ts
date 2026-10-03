@@ -1,81 +1,109 @@
 #!/usr/bin/env node
-import { parseArgs } from 'node:util';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
-import { head, treeStatus, verifyIdHistory } from '../git/git.js';
-import { VERSION } from '../io.js';
-import { createProject } from '../project/create.js';
-import { doctor } from '../project/doctor.js';
-import { contract, initProject, validateProject } from '../project/project.js';
-import { loadConfig } from '../project/config.js';
-import { parseProject } from '../spec/parser.js';
-import { materialize } from '../spec/projector.js';
-import { invalidate, loadState, saveState, withLock } from '../state/state.js';
-import { chatProject, developProject, planProject } from '../workflow.js';
+import { parseArgs } from 'node:util';
+import { chatProject } from '../commands/chat.js';
+import { createProject } from '../commands/create.js';
+import { developProject } from '../commands/develop.js';
+import { doctor } from '../commands/doctor.js';
+import { initProject } from '../commands/init.js';
+import { planProject } from '../commands/plan.js';
+import { collectStatus, formatStatus } from '../commands/status.js';
+import { validateProject } from '../commands/validate.js';
+import { loadConfig } from '../config/config.js';
+import { FatalError } from '../core/errors.js';
+import { startServer, stopServer } from '../e2e/runtime.js';
+import type { Plan } from '../plan/plan.js';
 
-const descriptions: Record<string, string> = {
-  create: 'harness create <directory> --template-repo <repo> [--template-ref <revision>]\nOmitting --template-ref uses the template repository default branch HEAD.',
-  init: 'harness init [--project <directory>]\nInstall the project contract without overwriting specification/config.',
-  doctor: 'harness doctor [--project <directory>]\nDiagnose external CLI availability and required flags.',
-  validate: 'harness validate [--project <directory>] [--refresh-projections]\nValidate contract, specification, generated views and state. Refresh is explicit regeneration after manual spec edits.',
-  status: 'harness status [--project <directory>]\nShow phase, AC coverage, checkpoint and working tree.',
-  chat: 'harness chat <product change request> [--project <directory>] [--reference <project-source-path>]\nEdit PROJECT.md, validate, create a local spec revision and replan. Repeat --reference to supply existing/reference implementations.',
-  plan: 'harness plan [--project <directory>]\nGenerate a structured execution plan for every active AC.',
-  develop: 'harness develop [--project <directory>]\nImplement milestones and verify local checkpoints.',
+// CLI のサブコマンド (§25)。server は E2E scenario が server を再起動するために使う
+export type Command = 'create' | 'init' | 'doctor' | 'validate' | 'status' | 'chat' | 'plan' | 'develop' | 'server';
+
+// 各サブコマンドの usage
+export const usage: Record<Command, string> = {
+  create: 'harness create <directory> --template-repo <repo> [--template-ref <branch-or-tag>]\nCreate a NeoForge project.',
+  init: 'harness init [--project <directory>]\nInitialize the project as managed by Harness.',
+  doctor: 'harness doctor [--project <directory>]\nCheck the required development environment.',
+  validate: 'harness validate [--project <directory>]\nValidate PROJECT.md and Harness configuration.',
+  status: 'harness status [--project <directory>]\nShow the current execution state.',
+  chat: 'harness chat <product change request> [--project <directory>]\nChange the product specification and replan.',
+  plan: 'harness plan [--project <directory>]\nCreate the milestone plan.',
+  develop: 'harness develop [--project <directory>]\nDevelop all milestones automatically.',
+  server: 'harness server start|stop [--project <directory>]\nStart or stop the NeoForge server used by E2E scenarios.',
 };
 
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
-  const { values, positionals } = parseArgs({ args, allowPositionals: true, strict: true, options: {
-    help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' }, project: { type: 'string' },
-    'template-repo': { type: 'string' }, 'template-ref': { type: 'string' },
-    'refresh-projections': { type: 'boolean' },
-    reference: { type: 'string', multiple: true },
-  } });
-  const [command, ...rest] = positionals;
-  if (values.version) { console.log(VERSION); return; }
-  if (values.help || !command) {
-    if (command && !descriptions[command]) throw new Error(`Unknown command: ${command}`);
-    console.log(command ? descriptions[command] : `Modding Harness ${VERSION}\n\n${Object.values(descriptions).map(text => text.split('\n')[0]).join('\n')}`); return;
+// 引数を parse してサブコマンドへ振り分ける
+export async function main(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args, allowPositionals: true,
+    options: { help: { type: 'boolean', short: 'h' }, project: { type: 'string' }, 'template-repo': { type: 'string' }, 'template-ref': { type: 'string' } },
+  });
+  const [name, ...rest] = positionals;
+  if (!name || values.help) {
+    console.log(name && name in usage ? usage[name as Command] : `Usage:\n${Object.values(usage).map(text => `  ${text.split('\n')[0]}`).join('\n')}`);
+    return;
   }
+  if (!(name in usage)) throw new Error(`Unknown command: ${name}`);
+  const command = name as Command;
   const root = path.resolve(values.project ?? process.cwd());
-  if (values.reference && command !== 'chat') throw new Error('--reference is only supported by chat');
   switch (command) {
     case 'create': {
-      if (rest.length !== 1 || !values['template-repo']) throw new Error(descriptions.create);
-      await createProject(path.resolve(rest[0]!), values['template-repo'], values['template-ref']);
-      console.log('Created independent project. Review PROJECT.md and commit the bootstrap files before development.'); break;
+      const templateRepo = values['template-repo'];
+      if (rest.length !== 1 || !templateRepo) throw new Error(usage.create);
+      const templateRef = values['template-ref'];
+      await createProject(path.resolve(rest[0]!), templateRef ? { templateRepo, templateRef } : { templateRepo });
+      console.log(`Created ${rest[0]}. Write PROJECT.md, set Status: active, commit, then run harness develop.`);
+      break;
     }
-    case 'init': await initProject(root); console.log('Initialized. Review PROJECT.md/config and commit the bootstrap files before development.'); break;
+    case 'init':
+      await initProject(root);
+      console.log('Initialized. Write PROJECT.md, review .harness-config.json, commit, then run harness develop.');
+      break;
     case 'doctor': {
       const diagnostics = await doctor(root);
-      for (const item of diagnostics) console.log(`${item.name}: ${item.status} — ${item.detail}`);
-      if (diagnostics.some(item => item.status !== 'available')) process.exitCode = 1;
+      for (const item of diagnostics) console.log(`${item.status.padEnd(13)} ${item.name}: ${item.detail.split('\n')[0]}`);
+      if (diagnostics.some(item => item.status !== 'ok')) process.exitCode = 1;
       break;
     }
     case 'validate': {
-      if (values['refresh-projections']) await withLock(root, async () => {
-        const config = await loadConfig(root); await contract(root, config);
-        const spec = parseProject(await readFile(path.join(root, 'PROJECT.md'), 'utf8'));
-        await verifyIdHistory(root, spec);
-        const state = await loadState(root);
-        if (state) { invalidate(state, spec); await saveState(root, state); }
-        await materialize(root, spec);
-      });
-      const { spec } = await validateProject(root); console.log(`Valid: ${spec.hash}, ${spec.acs.filter(ac => ac.active).length} active ACs`); break;
+      const report = await validateProject(root);
+      if (report.problems.length) {
+        console.log(`Problems:\n${report.problems.map(problem => `- ${problem}`).join('\n')}`);
+        process.exitCode = 1;
+      } else console.log(`Valid: PROJECT.md is ${report.spec?.status}`);
+      break;
     }
-    case 'status': {
-      const { spec } = await validateProject(root), state = await loadState(root), revision = await head(root), dirty = await treeStatus(root);
-      const counts = { verified: 0, pending: 0, blocked: 0 };
-      for (const ac of spec.acs.filter(ac => ac.active)) counts[state?.acs[ac.id]?.status ?? 'pending']++;
-      console.log(`revision: ${revision}\nspec: ${spec.hash}\nphase: ${state?.phase ?? 'idle'}${state && state.revision !== revision ? ' (revision changed; revalidation required)' : ''}\nmilestone: ${state?.activeMilestone ?? 'none'}\nACs: ${Object.entries(counts).map(([key, value]) => `${value} ${key}`).join(', ')}\ncheckpoint: ${state?.checkpoints.at(-1)?.commit ?? 'none'}\nworking tree: ${dirty ? `dirty\n${dirty}` : 'clean'}`); break;
+    case 'status':
+      console.log(formatStatus(await collectStatus(root)));
+      break;
+    case 'chat': {
+      const plan = await chatProject(root, rest.join(' '));
+      console.log(plan ? `PROJECT.md updated.\n${formatPlan(plan)}` : 'PROJECT.md updated. Planning waits until PROJECT.md meets the active conditions (see harness validate).');
+      break;
     }
-    case 'chat': await chatProject(root, rest.join(' '), undefined, values.reference); console.log('Product change processed.'); break;
-    case 'plan': {
-      const plan = await planProject(root); console.log(`${plan.milestones.length} milestones, ${plan.blocked.length} blocked`); break;
+    case 'plan':
+      console.log(formatPlan(await planProject(root)));
+      break;
+    case 'develop':
+      console.log(`Development ${await developProject(root)}.`);
+      break;
+    case 'server': {
+      const config = await loadConfig(root);
+      if (rest[0] === 'start') await startServer(root, config.runtime);
+      else if (rest[0] === 'stop') await stopServer(root);
+      else throw new Error(usage.server);
+      break;
     }
-    case 'develop': await developProject(root); console.log(`Development phase: ${(await loadState(root))?.phase}`); break;
-    default: throw new Error(`Unknown command: ${command}; use harness --help`);
   }
 }
 
-main().catch((error: unknown) => { console.error(`harness: ${(error as Error).message}`); process.exitCode = 1; });
+// FatalError などの例外を利用者向けの表示と終了コードへ変換する (§20)
+export function reportError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`harness: ${error instanceof FatalError ? 'fatal: ' : ''}${message}`);
+  process.exitCode = 1;
+}
+
+function formatPlan(plan: Plan): string {
+  return plan.milestones.map(milestone => `${milestone.id} [${milestone.acIds.join(', ')}] ${milestone.summary}`).join('\n');
+}
+
+main(process.argv.slice(2)).catch(reportError);
