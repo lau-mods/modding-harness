@@ -4,6 +4,7 @@ import { appendFile, copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { exists, readJson, safePath, save, walk } from '../io.js';
 import { run, success } from '../process.js';
 import type { Runner } from '../process.js';
@@ -134,8 +135,7 @@ export class McPilot {
         const socket = createServer();
         socket.once('error', reject);
         socket.listen(0, '127.0.0.1', () => {
-          const address = socket.address();
-          if (!address || typeof address === 'string') { socket.close(); reject(new Error('Could not allocate MC Pilot port')); return; }
+          const address = socket.address() as AddressInfo;
           socket.close(error => error ? reject(error) : resolve(address.port));
         });
       });

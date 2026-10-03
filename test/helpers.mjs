@@ -85,7 +85,7 @@ if(['test','runGameTestServer'].includes(task) && !config.noReports) {
   const config = { contract: 1, project: { buildFile: 'build.gradle', metadata: 'src/main/templates/META-INF/neoforge.mods.toml' },
     gradle: { compile: 'classes', test: 'test', build: 'build', gameTest: 'runGameTestServer' },
     agents: { implementation: { command: path.join(root, '.fake-bin/codex'), model: null }, review: { command: path.join(root, '.fake-bin/claude'), model: null } },
-    runtime: { provider: 'mc-pilot', command: path.join(root, '.fake-bin/mct'), clients: ['a','b'], server: {command:[process.execPath,path.join(root,'.fake-bin/server.cjs')],directory:'.harness-state/runtime/server',address:'127.0.0.1:25575'},deploy:[{source:'build.gradle',target:'.harness-state/runtime/server/mods/fake.jar'}],logs:[] } };
+    runtime: { command: path.join(root, '.fake-bin/mct'), clients: ['a','b'], server: {command:[process.execPath,path.join(root,'.fake-bin/server.cjs')],directory:'.harness-state/runtime/server',address:'127.0.0.1:25575'},deploy:[{source:'build.gradle',target:'.harness-state/runtime/server/mods/fake.jar'}],logs:[] } };
   if (!options.noConfig) await put(root, '.harness-config.json', config);
   await put(root, 'tests/verification.json', { contract:1,tests:types.filter(type=>['unit','gametest'].includes(type)).map(type=>({acId,type,report:type==='unit'?'build/test-results/test/TEST-example.Test.xml':'build/gametest.xml',classname:'example.Test',name:'observed'})) });
   await put(root,'.fake-bin/server.cjs', `console.log('Done (0.1s)! For help, type "help"');process.stdin.on('data',x=>{if(x.toString().includes('stop'))process.exit(0)});` ,true);

@@ -8,7 +8,7 @@ export type Config = {
   project: { buildFile: string; metadata: string };
   gradle: { compile: string; build: string; test: string; gameTest: string | null };
   agents: { implementation: AgentConfig; review: AgentConfig };
-  runtime: { provider: 'mc-pilot'; command: string; clients: string[];
+  runtime: { command: string; clients: string[];
     clientOptions?: { javaCommand?: string; maxMemory?: string; earlyWindowControl?: boolean };
     server: { command: string[]; directory: string; address: string } | null;
     deploy: { source: string; target: string }[]; logs: string[] };

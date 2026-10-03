@@ -11,7 +11,7 @@ export function gitProcess(root: string, args: string[], options: Omit<ProcessOp
   return run('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args], { ...options, cwd: root });
 }
 export async function git(root: string, args: string[]): Promise<string> {
-  const allowed = new Set(['rev-parse', 'status', 'ls-files', 'diff', 'log', 'show', 'config', 'check-ignore', 'add', 'commit', 'ls-tree', 'for-each-ref', 'merge-base']);
+  const allowed = new Set(['rev-parse', 'status', 'ls-files', 'diff', 'log', 'show', 'config', 'add', 'commit', 'ls-tree', 'merge-base']);
   if (!allowed.has(args[0]!)) throw new Error(`Git operation is not allowed in workflows: ${args[0]}`);
   if (args[0] === 'config' && (args.length !== 5 || args[1] !== '--file' || args[2] !== '.gitmodules' || args[3] !== '--get-regexp')) throw new Error('Only a read of .gitmodules is allowed');
   return success(await gitProcess(root, args), `git ${args[0]}`).stdout;

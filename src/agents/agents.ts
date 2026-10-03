@@ -95,7 +95,7 @@ export async function applyChanges(root: string, value: unknown): Promise<void> 
     prepared.push({ path: file, content: change.content === null ? null : Buffer.from(change.content, change.encoding) });
   }
   for (const change of prepared) {
-    if (change.content === null) { if (await exists(change.path)) await rm(change.path); }
+    if (change.content === null) await rm(change.path, { force: true });
     else { await mkdir(path.dirname(change.path), { recursive: true }); await writeFile(change.path, change.content); }
   }
 }

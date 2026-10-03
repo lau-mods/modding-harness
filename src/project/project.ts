@@ -70,7 +70,7 @@ export async function initProject(root: string, runner: Runner = run): Promise<v
     config = { contract: 1, project,
       gradle: { compile: detectTask(tasks, 'classes')!, build: detectTask(tasks, 'build')!, test: detectTask(tasks, 'test')!, gameTest: detectTask(tasks, 'runGameTestServer', true) },
       agents: { implementation: { command: 'codex', model: null }, review: { command: 'claude', model: null } },
-      runtime: { provider: 'mc-pilot', command: 'mct', clients: [], server: null, deploy: [], logs: [] } };
+      runtime: { command: 'mct', clients: [], server: null, deploy: [], logs: [] } };
     await capability(root, config);
     await writeFile(configFile, json(config), { flag: 'wx' });
   }
@@ -107,14 +107,13 @@ export async function validateProject(root: string): Promise<{ config: Config; s
         if (!item.runId || !item.checkpoint) throw new Error(`Verified AC lacks checkpoint: ${ac.id}`);
         const cp = state.checkpoints.find(cp => cp.commit === item.checkpoint && cp.acIds.includes(ac.id) && cp.runId === item.runId);
         if (!cp) throw new Error(`Verified AC has no recorded checkpoint: ${ac.id}`);
+        if (checked.has(cp.runId)) continue;
         const msg = await git(root, ['log', '-1', '--format=%B', cp.commit]);
         for (const trailer of [`Harness-Milestone: ${cp.milestone}`, `Harness-Spec-Hash: ${cp.specHash}`, `Harness-Verification-Run: ${cp.runId}`]) if (!msg.split('\n').includes(trailer)) throw new Error(`Checkpoint trailer mismatch: ${ac.id}`);
         if (!msg.split('\n').includes(`Harness-AC: ${cp.acIds.join(', ')}`)) throw new Error(`Checkpoint AC trailer mismatch: ${ac.id}`);
         await git(root, ['merge-base', '--is-ancestor', cp.commit, 'HEAD']);
-        if (!checked.has(cp.runId)) {
-          const stillVerified = cp.acIds.filter(id => state.acs[id]?.status === 'verified' && state.acs[id]?.runId === cp.runId && state.acs[id]?.checkpoint === cp.commit);
-          await validateEvidence(root, spec, cp, stillVerified); checked.add(cp.runId);
-        }
+        const stillVerified = cp.acIds.filter(id => state.acs[id]?.status === 'verified' && state.acs[id]?.runId === cp.runId && state.acs[id]?.checkpoint === cp.commit);
+        await validateEvidence(root, spec, cp, stillVerified); checked.add(cp.runId);
       }
     }
     if (state.phase === 'complete' && active.some(ac => state.acs[ac.id]!.status !== 'verified')) throw new Error('Invalid complete state: verified local checkpoints for all active ACs are required');

@@ -4,9 +4,9 @@ import { hash } from '../io.js';
 
 export const verificationTypes = ['unit', 'gametest', 'e2e', 'visual', 'persistence', 'multiplayer'] as const;
 export type Verification = typeof verificationTypes[number];
-export type Section = { title: string; depth: number; start: number; end: number; line: number; endLine: number; body: string; raw: string; parent: number | null };
+export type Section = { title: string; depth: number; start: number; end: number; line: number; body: string; raw: string; parent: number | null };
 export type SpecItem = { id: string; title: string; kind: 'feature' | 'requirement' | 'ac'; parent: string | null; active: boolean; source: Section };
-export type Criterion = SpecItem & { verification: Verification[]; fields: Record<string, string> };
+export type Criterion = SpecItem & { verification: Verification[] };
 export type ProjectSpec = { text: string; hash: string; status: 'draft' | 'active'; sections: Section[]; items: SpecItem[]; acs: Criterion[]; globalHash: string; openQuestions: string };
 
 function plain(nodes: PhrasingContent[]): string {
@@ -23,7 +23,7 @@ export function sectionsOf(text: string): Section[] {
     let parent: number | null = null;
     for (let p = index - 1; p >= 0; p--) if (headings[p]!.depth < heading.depth) { parent = p; break; }
     return { title: plain(heading.children), depth: heading.depth, start, end,
-      line: heading.position!.start.line, endLine: next ? next.position!.start.line - 1 : text.split('\n').length,
+      line: heading.position!.start.line,
       body: text.slice(heading.position!.end.offset!, end).trim(), raw: text.slice(start, end), parent };
   });
 }
@@ -107,7 +107,7 @@ export function parseProject(text: string): ProjectSpec {
         if (verification.includes(type as Verification)) throw new Error(`Duplicate verification ${type} in ${id}`);
         verification.push(type as Verification);
       }
-      acs.push({ ...item, fields, verification });
+      acs.push({ ...item, verification });
     }
   }
   for (const feature of items.filter(item => item.kind === 'feature' && item.active)) {

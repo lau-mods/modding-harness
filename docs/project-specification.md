@@ -47,6 +47,4 @@ ID は `F-001`、`R-F001-001`、`AC-F001-001` の形式で、数字は 3 桁以�
 
 Open Questions は根拠を考慮しても実質的に異なる製品判断が残る場合に使います。加工中の素材を返すか消費するかについて、仕様にも参照実装にも根拠がなければ未決定として記録します。確定後は Requirement/AC/Constraints に反映し、Open Questions を `None.` にします。
 
-通常の製品変更は `harness chat '要求'` を使用します。手動変更時は `harness validate --refresh-projections` で明示的に派生情報を更新し、自分で spec commit してください。`validate` 単独は projection の不一致を拒否します。生成ファイルを製品仕様の編集先にしないでください。
-
-Spec Editor に参照内容を渡すには `harness chat '既存実装に合わせて補足' --reference src/main/java/example/ExistingPress.java` を使用します。複数ファイルは `--reference` を繰り返します。外部の参考実装は必要な抜粋を要求本文に含めます。リンクやファイル名だけで内容を読んだことにはしません。
+変更・参考ファイル指定の操作は [README の仕様変更](../README.md#仕様変更) を参照してください。

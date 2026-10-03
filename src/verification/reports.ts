@@ -20,8 +20,7 @@ export async function loadTestMappings(root: string, spec: ProjectSpec): Promise
 export async function clearReports(root: string, mappings: TestMapping[]): Promise<void> {
   // Only declared generated reports are removed, ensuring stale results cannot pass a new run.
   for (const report of new Set(mappings.map(item => item.report))) {
-    const file = await safePath(root, report);
-    if (await exists(file)) await rm(file);
+    await rm(await safePath(root, report), { force: true });
   }
 }
 export async function checkReports(root: string, mappings: TestMapping[], ids: string[], type: 'unit' | 'gametest'): Promise<{ acId: string; reports: string[] }[]> {

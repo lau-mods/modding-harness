@@ -7,13 +7,13 @@ export type Runner = (command: string, args: string[], options: ProcessOptions) 
 export const run: Runner = (command, args, options) => new Promise((resolve, reject) => {
   const child = spawn(command, args, {
     cwd: options.cwd, env: { ...process.env, ...options.env }, shell: false,
-    stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32',
+    stdio: ['pipe', 'pipe', 'pipe'], detached: true,
   });
   const stdout: Buffer[] = [], stderr: Buffer[] = [];
   let bytes = 0, failure: Error | undefined;
   const stop = (error: Error): void => {
     failure = error;
-    try { if (child.pid && process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); }
+    try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); }
     catch (cause) { if ((cause as NodeJS.ErrnoException).code !== 'ESRCH') failure = cause as Error; }
   };
   const timer = setTimeout(() => stop(new Error(`${command} timed out`)), options.timeoutMs ?? 1_800_000);

@@ -8,7 +8,6 @@ runtime config 例（各 path と名前を実環境に合わせて確定）:
 
 ```json
 {
-  "provider": "mc-pilot",
   "command": "mct",
   "clients": ["harness-a", "harness-b"],
   "clientOptions": {

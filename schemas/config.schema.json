@@ -90,10 +90,6 @@
     "runtime": {
       "type": "object",
       "properties": {
-        "provider": {
-          "const": "mc-pilot",
-          "type": "string"
-        },
         "command": {
           "type": "string",
           "minLength": 1
@@ -179,7 +175,6 @@
         }
       },
       "required": [
-        "provider",
         "command",
         "clients",
         "server",

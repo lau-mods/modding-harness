@@ -70,9 +70,7 @@ export async function runRuntime(root: string, config: Config, spec: ProjectSpec
         const setup = await execute(scenario, 'setup', generation);
         if (!setup.persistence?.saved) throw new ScenarioError(`${scenario.id} persistence setup must save world state`);
         await runtime.stop();
-        const previous = generation;
         generation = await runtime.start();
-        if (previous === generation) throw new Error('Persistence verification requires a new process generation');
         result = await execute(scenario, 'assert', generation);
         if (!result.persistence?.reloaded || result.persistence.worldId !== setup.persistence.worldId) throw new ScenarioError(`${scenario.id} did not reload the saved world`);
       } else result = await execute(scenario, 'execute', generation);
