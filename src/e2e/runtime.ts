@@ -148,6 +148,7 @@ export function scenarioEnv(root: string, config: RuntimeConfig, session: Runtim
   return {
     ...pilotEnv(root),
     HARNESS_MCT: config.command,
+    HARNESS_E2E_LIB: path.join(harnessRoot(), 'e2e', 'lib.mjs'),
     HARNESS_CLIENTS: JSON.stringify(session.clients),
     HARNESS_SERVER_ADDRESS: session.server,
     HARNESS_WORLD: session.world,

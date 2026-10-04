@@ -11,15 +11,12 @@ if (existsSync(failures)) {
     process.exit(3);
   }
 }
-const mct = (...args) => execFileSync(process.env.HARNESS_MCT, args);
-const control = JSON.parse(process.env.HARNESS_SERVER_CONTROL);
-execFileSync(control[0], [...control.slice(1), 'stop']);
-execFileSync(control[0], [...control.slice(1), 'start']);
-mct('screenshot', '--output', path.join(process.env.HARNESS_SCREENSHOT_DIR, 'shot.png'));
-const ok = existsSync('src/FEATURE_OK');
-writeFileSync(process.env.HARNESS_RESULT_FILE, JSON.stringify({
-  scenarioId: process.env.HARNESS_SCENARIO_ID,
-  passed: ok,
-  assertions: [{ name: 'feature_enabled', expected: true, actual: ok, passed: ok }],
-  screenshots: ['shot.png'],
-}));
+const { scenario, mct, check, screenshot } = await import(process.env.HARNESS_E2E_LIB);
+await scenario(async ({ clients }) => {
+  const control = JSON.parse(process.env.HARNESS_SERVER_CONTROL);
+  execFileSync(control[0], [...control.slice(1), 'stop']);
+  execFileSync(control[0], [...control.slice(1), 'start']);
+  check('in_overworld', 'minecraft:overworld', mct(clients[0], 'status', 'world').dimension);
+  check('feature_enabled', true, existsSync('src/FEATURE_OK'));
+  screenshot(clients[0], 'shot');
+});

@@ -55,7 +55,8 @@ test('develop runs build, review, E2E and visual loops until the checkpoint', as
   const mct = project.mctLog();
   assert.ok(mct.some(line => /^client launch harness-a --server 127\.0\.0\.1:25599 --ws-port \d+ --account harness_a --force$/.test(line)));
   assert.ok(mct.some(line => line.startsWith('client wait-ready harness-a')));
-  assert.ok(mct.some(line => line.startsWith('screenshot')));
+  assert.ok(mct.some(line => line.startsWith('--client harness-a screenshot')));
+  assert.ok(mct.some(line => line === '--client harness-a status world'), 'preflight and the scenario read the world state');
   assert.ok(mct.some(line => line === 'client stop harness-a'));
   const server = JSON.parse(readFileSync(path.join(project.root, '.harness-state/runtime/server.json'), 'utf8'));
   assert.equal(server.pid, null);
@@ -99,6 +100,15 @@ test('develop stops with fatal when PROJECT.md changes during implementation', a
   assert.equal(state.phase, 'fatal');
   assert.match(state.fatal.reason, /PROJECT\.md/);
   assert.equal((await collectStatus(project.root)).fatal, state.fatal.reason);
+});
+
+test('develop stops with fatal before planning when preflight fails', async () => {
+  const project = setupProject({ claude: { plan: [{ output: PLAN }] } });
+  writeFileSync(path.join(project.root, '.harness-state/runtime/server/eula.txt'), 'eula=false\n');
+
+  await assert.rejects(developProject(project.root), error => error instanceof FatalError && /Preflight failed at "start server and clients"[\s\S]*EULA/.test(error.message));
+  assert.equal(project.harnessState().phase, 'fatal');
+  assert.deepEqual(project.calls(), []);
 });
 
 test('chat updates PROJECT.md, commits it and replans', async () => {

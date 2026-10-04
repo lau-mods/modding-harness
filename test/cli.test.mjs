@@ -35,5 +35,5 @@ test('init, validate and status work on a new project', () => {
 
 test('help lists every command', () => {
   const help = harness('--help');
-  for (const command of ['create', 'init', 'doctor', 'validate', 'status', 'chat', 'plan', 'develop', 'server']) assert.match(help.stdout, new RegExp(`harness ${command}`));
+  for (const command of ['create', 'init', 'doctor', 'preflight', 'validate', 'status', 'chat', 'plan', 'develop', 'server']) assert.match(help.stdout, new RegExp(`harness ${command}`));
 });

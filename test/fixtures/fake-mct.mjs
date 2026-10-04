@@ -9,10 +9,14 @@ let data = {};
 if (args[0] === '--cli-version') data = { version: 'fake' };
 if (args[0] === 'client' && args[1] === 'wait-ready') data = { connected: true, inWorld: true };
 if (args[0] === 'client' && args[1] === 'list') data = { clients: [{ name: 'harness-a', running: false, loader: 'neoforge' }] };
-if (args[0] === 'screenshot') {
-  const output = args[args.indexOf('--output') + 1];
+// gameplay コマンドは client の応答を内側の envelope に包んで返す
+const gameplay = args[0] === '--client' ? args.slice(2) : args;
+if (gameplay[0] === 'status') data = { success: true, data: { dimension: process.env.FAKE_DIMENSION ?? 'minecraft:overworld' }, error: null };
+if (gameplay[0] === 'fail') data = { success: false, data: null, error: 'NOT_IN_WORLD' };
+if (gameplay[0] === 'screenshot') {
+  const output = gameplay[gameplay.indexOf('--output') + 1];
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, Buffer.from('89504e470d0a1a0a', 'hex'));
-  data = { path: output };
+  data = { success: true, data: { path: output }, error: null };
 }
 process.stdout.write(JSON.stringify({ success: true, data }));

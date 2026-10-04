@@ -7,6 +7,7 @@ import { developProject } from '../commands/develop.js';
 import { doctor } from '../commands/doctor.js';
 import { initProject } from '../commands/init.js';
 import { planProject } from '../commands/plan.js';
+import { preflight } from '../commands/preflight.js';
 import { collectStatus, formatStatus } from '../commands/status.js';
 import { validateProject } from '../commands/validate.js';
 import { loadConfig } from '../config/config.js';
@@ -16,13 +17,14 @@ import { launchClients, startServer, stopRuntime } from '../e2e/runtime.js';
 import type { Plan } from '../plan/plan.js';
 
 // CLI のサブコマンド (§25)。server は E2E scenario が server と client を再起動するために使う
-export type Command = 'create' | 'init' | 'doctor' | 'validate' | 'status' | 'chat' | 'plan' | 'develop' | 'server';
+export type Command = 'create' | 'init' | 'doctor' | 'preflight' | 'validate' | 'status' | 'chat' | 'plan' | 'develop' | 'server';
 
 // 各サブコマンドの usage
 export const usage: Record<Command, string> = {
   create: 'harness create <directory> --template-repo <repo> [--template-ref <branch-or-tag>]\nCreate a NeoForge project.',
   init: 'harness init [--project <directory>]\nInitialize the project as managed by Harness.',
   doctor: 'harness doctor [--project <directory>]\nCheck the required development environment.',
+  preflight: 'harness preflight [--project <directory>]\nStart the server and clients, read the world state on each client, and stop them.',
   validate: 'harness validate [--project <directory>]\nValidate PROJECT.md and Harness configuration.',
   status: 'harness status [--project <directory>]\nShow the current execution state.',
   chat: 'harness chat <product change request> [--project <directory>]\nChange the product specification and replan.',
@@ -64,6 +66,10 @@ export async function main(args: string[]): Promise<void> {
       if (diagnostics.some(item => item.status !== 'ok')) process.exitCode = 1;
       break;
     }
+    case 'preflight':
+      await preflight(root);
+      console.log('Preflight passed: the server and every client started, joined the world and stopped.');
+      break;
     case 'validate': {
       const report = await validateProject(root);
       if (report.problems.length) {

@@ -143,12 +143,17 @@ const CODE_STYLE = `Code style:
 const SCENARIO_CONTRACT = `E2E scenario contract:
 - tests/e2e/manifest.json registers scenarios: {"scenarios":[{"id":"press","acIds":["AC-F001-001"],"command":["node","tests/e2e/scenarios/press.mjs"]}]}. Every target Acceptance Criterion needs at least one scenario.
 - The harness builds the mod, deploys the jar to the server and every client, starts the NeoForge server, launches every client in HARNESS_CLIENTS and waits until each one has joined the world, runs each scenario command from the project root, and stops all clients and the server afterwards.
-- Environment variables: HARNESS_MCT (MC Pilot command), MCT_HOME and MCT_CACHE_DIR (MC Pilot home, already set), HARNESS_CLIENTS (JSON array of client names), HARNESS_SERVER_ADDRESS, HARNESS_WORLD, HARNESS_SERVER_CONTROL (JSON argv; append "stop" or "start" to restart the server and clients, for example to reload the world), HARNESS_RESULT_FILE, HARNESS_SCREENSHOT_DIR, HARNESS_SCENARIO_ID, HARNESS_AC_IDS (JSON array).
-- A scenario drives the game through the connected clients with MC Pilot commands. Every MC Pilot command prints a JSON envelope {"success":true,"data":...}. With several clients running, pass the global option "--client <name>" before the subcommand.
-- Gameplay commands wrap the client response in a second envelope: {"success":true,"data":{"success":true,"data":{...}}}. Read game state from the inner data after both success flags are true; lifecycle commands such as client launch use a single envelope.
-- A scenario observes real game state and writes HARNESS_RESULT_FILE: {"scenarioId":"press","passed":true,"assertions":[{"name":"output_created","expected":1,"actual":1,"passed":true}],"screenshots":["output.png"]}. Each assertion compares an observed value with the Expected Result.
-- When an Expected Result includes visual content, the scenario saves screenshots with "$HARNESS_MCT screenshot --output $HARNESS_SCREENSHOT_DIR/<name>.png" and lists the file names in "screenshots".
-- A scenario exits with code 0 after writing the result file, also when assertions fail. A non-zero exit code means the scenario itself could not run.`;
+- Environment variables: HARNESS_MCT (MC Pilot command), MCT_HOME and MCT_CACHE_DIR (MC Pilot home, already set), HARNESS_CLIENTS (JSON array of client names), HARNESS_SERVER_ADDRESS, HARNESS_WORLD, HARNESS_SERVER_CONTROL (JSON argv; append "stop" or "start" to restart the server and clients, for example to reload the world), HARNESS_RESULT_FILE, HARNESS_SCREENSHOT_DIR, HARNESS_SCENARIO_ID, HARNESS_AC_IDS (JSON array), HARNESS_E2E_LIB (helper module).
+- Write every scenario with the helper module, which handles MC Pilot responses and the result file:
+  const { scenario, mct, waitFor, check, screenshot } = await import(process.env.HARNESS_E2E_LIB);
+  await scenario(async ({ clients }) => {
+    mct(clients[0], 'chat', 'command', 'give @s minecraft:copper_ingot');
+    const slots = await waitFor(() => mct(clients[0], 'inventory', 'get').slots, slots => slots.length > 0);
+    check('copper_in_inventory', 1, slots.filter(slot => slot.item === 'minecraft:copper_ingot').length);
+    screenshot(clients[0], 'inventory');
+  });
+  mct(client, ...args) runs an MC Pilot command for that client and returns its game data. waitFor(read, until, timeoutMs) polls until the observed state settles. check(name, expected, actual, passed?) records an assertion with the observed value as actual. screenshot(client, name) saves a screenshot for visual review. scenario() writes the result file and records a thrown error as a failed scenario_error assertion.
+- Each assertion compares an observed game value with the Expected Result. Take screenshots when an Expected Result includes visual content.`;
 
 function block(title: string, body: string): string {
   return `## ${title}\n\n${body}`;

@@ -8,7 +8,7 @@ import type { E2EFailureReport, E2ERunSummary } from '../e2e/e2e.js';
 import type { IssueSet } from '../review/issues.js';
 
 // 開発処理の phase (§24)
-export type Phase = 'idle' | 'planning' | 'implementation' | 'build' | 'code_review' | 'e2e' | 'visual_review' | 'checkpoint' | 'rollback' | 'fatal' | 'complete';
+export type Phase = 'idle' | 'preflight' | 'planning' | 'implementation' | 'build' | 'code_review' | 'e2e' | 'visual_review' | 'checkpoint' | 'rollback' | 'fatal' | 'complete';
 
 // checkpoint commit の記録 (§21)
 export type CheckpointRecord = { milestone: string; commit: string; acIds: string[]; createdAt: string };

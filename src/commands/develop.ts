@@ -11,8 +11,9 @@ import { enterPhase, openContext } from '../workflow/context.js';
 import type { WorkflowContext } from '../workflow/context.js';
 import { runMilestone } from '../workflow/milestone.js';
 import { createPlan } from './plan.js';
+import { preflight } from './preflight.js';
 
-// 全 milestone を順に checkpoint まで進め、complete または fatal に到達するまで継続する (§7, §22, §31)
+// 実機環境を preflight で確認し、全 milestone を順に checkpoint まで進め、complete または fatal に到達するまで継続する (§7, §22, §31)
 export async function developProject(root: string, runner: Runner = run): Promise<Phase> {
   return withLock(root, async () => {
     const ctx = await openContext(root, runner);
@@ -20,6 +21,8 @@ export async function developProject(root: string, runner: Runner = run): Promis
       requireActionable(ctx.spec);
       await requireIgnoredState(ctx);
       if (!ctx.state.milestone && !await isClean(root)) throw new FatalError('Commit local changes before harness develop; each milestone starts from a clean checkpoint');
+      await enterPhase(ctx, 'preflight');
+      await preflight(root, runner);
       const plan = await ensurePlan(ctx);
       ctx.state.planLocked = true;
       ctx.state.fatal = null;

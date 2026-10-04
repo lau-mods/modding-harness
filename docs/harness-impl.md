@@ -735,6 +735,7 @@ phase の例は次のとおりとする。
 
 ```text
 idle
+preflight
 planning
 implementation
 build
@@ -760,6 +761,7 @@ Harness は対象プロジェクトの `.harness` に Git submodule として配
 | `harness create` | NeoForge プロジェクトを作成し、Harness を `.harness` submodule として追加する |
 | `harness init` | `.harness` submodule を持つプロジェクトを Harness 管理対象として初期化する |
 | `harness doctor` | 必要な開発環境を確認する |
+| `harness preflight` | Minecraft 実機環境の起動・world 参加・停止を確認する |
 | `harness validate` | PROJECT.md と Harness 設定を確認する |
 | `harness status` | 現在の実行状態を表示する |
 | `harness chat` | 製品仕様を変更する |

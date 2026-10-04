@@ -83,7 +83,7 @@ E2E では、Harness が NeoForge server を起動し、scenario が MC Pilot �
    ```
 
 3. 依存 Mod があれば、server の `mods/` と各 client の `$MCT_HOME/clients/<name>/minecraft/mods/` に置きます。
-4. `harness doctor` ですべての項目が `ok` になることを確認します。
+4. `harness doctor` ですべての項目が `ok` になることを確認し、`harness preflight` で実際に起動・world 参加・停止できることを確認します。
 
 開発する Mod の jar は、build のたびに Harness が server と全 client の `mods/` へ配置します。world は固定のテスト world (`runtime.world`、既定値 `harness-world`) を使います。
 
@@ -94,7 +94,7 @@ git add -A && git commit -m "Define the product"
 harness develop
 ```
 
-`develop` は計画が無ければ作成し、全 milestone を順に checkpoint まで進めます。計画だけを先に確認したい場合は `harness plan` を使います。進行状況は別の端末で `harness status` で確認できます。
+`develop` は開始時に preflight (server と全 client の起動・world 参加・停止の確認) を行い、計画が無ければ作成し、全 milestone を順に checkpoint まで進めます。計画だけを先に確認したい場合は `harness plan` を使います。進行状況は別の端末で `harness status` で確認できます。
 
 ### 5. 仕様を変更する
 
@@ -152,8 +152,11 @@ Harness は mod を配置して server を起動し、全 client を空き port 
 | `HARNESS_RESULT_FILE` | 結果 JSON の出力先 |
 | `HARNESS_SCREENSHOT_DIR` | screenshot の出力先 |
 | `HARNESS_SCENARIO_ID`, `HARNESS_AC_IDS` | scenario ID と対象 AC ID の JSON 配列 |
+| `HARNESS_E2E_LIB` | 共通 helper (`e2e/lib.mjs`) のパス |
 
-scenario は接続済みの client を MC Pilot で操作して実際の状態を観測します。結果は次の形式で `HARNESS_RESULT_FILE` に書きます。
+scenario は共通 helper を使い、接続済みの client を MC Pilot で操作して実際の状態を観測します。
+
+scenario は次の形式で `HARNESS_RESULT_FILE` を書きます。
 
 ```json
 {
@@ -221,6 +224,7 @@ scenario の成否は assertion で判定し、1 件以上の assertion がす�
 | `harness create <dir> --template-repo <repo> [--template-ref <ref>]` | テンプレートから NeoForge プロジェクトを作成し、Harness を `.harness` submodule として追加する |
 | `harness init` | `.harness` submodule を持つプロジェクトを Harness 管理対象として初期化する |
 | `harness doctor` | 必要な開発環境を確認する |
+| `harness preflight` | server と全 client を起動し、各 client で world の状態を 1 回読んでから停止する |
 | `harness validate` | PROJECT.md と Harness 設定を確認する |
 | `harness status` | 現在の実行状態を表示する |
 | `harness chat <request>` | 製品仕様を変更する |

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { validateOutput } from '../dist/agents/agent.js';
 import { ExecutionFailure, RetryExhausted } from '../dist/core/errors.js';
 import { withRetry } from '../dist/core/retry.js';
@@ -64,4 +68,24 @@ test('withRetry runs three attempts and then reports RetryExhausted', async () =
 test('agent output is validated against the role schema', () => {
   assert.deepEqual(validateOutput('code_recheck', { verdicts: [] }), { verdicts: [] });
   assert.throws(() => validateOutput('code_recheck', { verdicts: [{ issueId: 'CR-001', status: 'done', note: '' }] }), ExecutionFailure);
+});
+
+test('the E2E helper unwraps MC Pilot envelopes, records assertions and turns errors into a failed assertion', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'harness-lib-'));
+  const env = { ...process.env, FAKE_STATE: dir, HARNESS_MCT: fileURLToPath(new URL('./fixtures/fake-mct.mjs', import.meta.url)), HARNESS_E2E_LIB: fileURLToPath(new URL('../e2e/lib.mjs', import.meta.url)), HARNESS_CLIENTS: '["harness-a"]', HARNESS_SCENARIO_ID: 'lib', HARNESS_SCREENSHOT_DIR: dir };
+  const runScenario = (name, body) => {
+    const file = path.join(dir, `${name}.mjs`);
+    writeFileSync(file, `const { scenario, mct, waitFor, check } = await import(process.env.HARNESS_E2E_LIB);\nawait scenario(async ({ clients }) => {\n${body}\n});\n`);
+    const resultFile = path.join(dir, `${name}.json`);
+    execFileSync(process.execPath, [file], { env: { ...env, HARNESS_RESULT_FILE: resultFile } });
+    return JSON.parse(readFileSync(resultFile, 'utf8'));
+  };
+  const ok = runScenario('ok', `const world = await waitFor(() => mct(clients[0], 'status', 'world'), world => world.dimension === 'minecraft:overworld');\ncheck('dimension', 'minecraft:overworld', world.dimension);\ncheck('missing', 1, undefined);`);
+  assert.equal(ok.scenarioId, 'lib');
+  assert.deepEqual(ok.assertions.map(item => [item.name, item.actual, item.passed]), [['dimension', 'minecraft:overworld', true], ['missing', null, false]]);
+  assert.equal(ok.passed, false);
+  const failed = runScenario('failed', `mct(clients[0], 'fail');`);
+  assert.equal(failed.assertions[0].name, 'scenario_error');
+  assert.match(failed.assertions[0].actual, /NOT_IN_WORLD/);
+  assert.equal(failed.passed, false);
 });
