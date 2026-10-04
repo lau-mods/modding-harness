@@ -24,11 +24,11 @@ export type StatusReport = {
 export async function collectStatus(root: string): Promise<StatusReport> {
   const state = await loadState(root);
   const plan = await loadPlan(root);
-  const spec = await readProject(root).catch(() => null);
+  const spec = await readProject(root);
   const runtime = state.milestone;
   const completed = state.checkpoints.map(checkpoint => checkpoint.milestone);
   return {
-    projectStatus: state.phase === 'complete' ? 'complete' : spec?.status ?? 'draft',
+    projectStatus: state.phase === 'complete' ? 'complete' : spec.status,
     checkpoint: state.checkpoints.at(-1)?.commit ?? null,
     milestone: state.currentMilestone,
     phase: state.phase,

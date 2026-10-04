@@ -33,7 +33,7 @@ export async function mcPilot(root: string, config: RuntimeConfig, args: string[
   let envelope: { success?: boolean; data?: unknown };
   try { envelope = JSON.parse(result.stdout) as typeof envelope; }
   catch { envelope = {}; }
-  if (result.code !== 0 || envelope.success !== true) throw new ExecutionFailure(`MC Pilot ${args.join(' ')} failed: ${tail(result.stderr + result.stdout, 2000)}`, 'mc-pilot');
+  if (result.code !== 0 || envelope.success !== true) throw new ExecutionFailure(`MC Pilot ${args.join(' ')} failed: ${tail(result.stderr + result.stdout, 2000)}`);
   return envelope.data;
 }
 
@@ -76,7 +76,7 @@ export async function launchClients(root: string, config: RuntimeConfig, runner:
     const account = name.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 16);
     await mcPilot(root, config, ['client', 'launch', name, '--server', config.server.address, '--ws-port', String(await freePort()), '--account', account, '--force'], runner);
     const ready = await mcPilot(root, config, ['client', 'wait-ready', name, '--timeout', String(CLIENT_READY_TIMEOUT_SECONDS)], runner) as { inWorld?: boolean } | null;
-    if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`, 'client');
+    if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`);
   }
 }
 
@@ -94,7 +94,7 @@ export async function startServer(root: string, config: RuntimeConfig, logFile?:
   await stopServer(root);
   await setProperties(path.join(dir, 'server.properties'), { 'level-name': config.world, 'server-port': config.server.address.split(':').at(-1)!, 'online-mode': 'false' });
   const previous = await readServerProcess(root);
-  const log = logFile ?? previous?.logFile ?? path.join(projectPaths(root).runtime, 'server.log');
+  const log = logFile ?? previous!.logFile;
   await mkdir(path.dirname(log), { recursive: true });
   const offset = await stat(log).then(info => info.size, () => 0);
   const handle = await open(log, 'a');
@@ -109,8 +109,8 @@ export async function startServer(root: string, config: RuntimeConfig, logFile?:
   for (;;) {
     const output = (await readFile(log)).subarray(offset).toString('utf8');
     if (/Done \([\d.,]+s\)!/.test(output)) return;
-    if (!alive(child.pid!)) throw new ExecutionFailure(`NeoForge server exited during startup: ${tail(output, 2000)}`, 'server');
-    if (Date.now() > deadline) { await stopServer(root); throw new ExecutionFailure('NeoForge server did not become ready in time', 'server'); }
+    if (!alive(child.pid!)) throw new ExecutionFailure(`NeoForge server exited during startup: ${tail(output, 2000)}`);
+    if (Date.now() > deadline) { await stopServer(root); throw new ExecutionFailure('NeoForge server did not become ready in time'); }
     await sleep(500);
   }
 }

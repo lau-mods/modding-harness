@@ -8,7 +8,7 @@ const assertions = [];
 const screenshots = [];
 
 // Harness が起動して world に参加済みの client 名
-export const clients = JSON.parse(process.env.HARNESS_CLIENTS ?? '[]');
+export const clients = JSON.parse(process.env.HARNESS_CLIENTS);
 
 // client を指定して MC Pilot を実行し、外側と内側の envelope を外した data を返す。どちらかが失敗なら例外を投げる
 export function mct(client, ...args) {

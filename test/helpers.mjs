@@ -94,7 +94,7 @@ None.
 None.
 `;
 
-export const PLAN = { milestones: [{ id: 'M01', acIds: ['AC-F001-001', 'AC-F001-002'], dependsOn: [], summary: 'Implement the feature', scope: ['src/'], e2eSummary: 'The main scenario checks the feature and takes a screenshot' }] };
+export const PLAN = { milestones: [{ id: 'M01', acIds: ['AC-F001-001', 'AC-F001-002'], dependsOn: [], summary: 'Implement the feature', scope: ['src/'], e2eSummary: 'The main scenario checks the feature and takes a screenshot' }], excluded: [] };
 
 // E2E manifest と scenario を含む実装ファイル一式
 export function implementationFiles(extra = {}) {
@@ -119,7 +119,6 @@ export function setupProject(script, { scenarioFailures = 0 } = {}) {
   copyFileSync(path.join(fixtures, 'fake-gradlew.mjs'), path.join(root, 'gradlew'));
   chmodSync(path.join(root, 'gradlew'), 0o755);
   writeFileSync(path.join(root, '.harness-config.json'), JSON.stringify({
-    project: { buildFile: 'build.gradle' },
     gradle: { compile: 'classes', build: 'build' },
     agents: { implementation: { command: path.join(fixtures, 'fake-agent.mjs') }, review: { command: path.join(fixtures, 'fake-agent.mjs') } },
     runtime: {

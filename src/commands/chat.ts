@@ -23,9 +23,9 @@ export async function chatProject(root: string, request: string, runner: Runner 
       const output = await editSpec(agentCall(ctx, 'review', logDir), { request, projectMarkdown: ctx.spec.text });
       let spec;
       try { spec = parseProject(output.projectMarkdown); }
-      catch (error) { throw new ExecutionFailure(`Claude returned an invalid PROJECT.md: ${(error as Error).message}`, 'spec_edit'); }
+      catch (error) { throw new ExecutionFailure(`Claude returned an invalid PROJECT.md: ${(error as Error).message}`); }
       const problems = checkStructure(spec);
-      if (problems.length) throw new ExecutionFailure(`Claude returned an invalid PROJECT.md: ${problems.join('; ')}`, 'spec_edit');
+      if (problems.length) throw new ExecutionFailure(`Claude returned an invalid PROJECT.md: ${problems.join('; ')}`);
       return { summary: output.summary, spec };
     });
     if (edit.spec.text !== ctx.spec.text) {

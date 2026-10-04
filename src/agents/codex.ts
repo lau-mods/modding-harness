@@ -50,7 +50,7 @@ export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promi
   if (result.code !== 0) throw classifyAgentFailure(request.role, result);
   let value: unknown;
   try { value = JSON.parse(await readFile(outputFile, 'utf8')); }
-  catch (error) { throw new ExecutionFailure(`Codex returned no structured output: ${(error as Error).message}`, request.role); }
+  catch (error) { throw new ExecutionFailure(`Codex returned no structured output: ${(error as Error).message}`); }
   return { output: validateOutput<T>(request.role, value), sessionId: null };
 }
 

@@ -15,8 +15,8 @@ export type Milestone = {
   e2eSummary: string; // E2E の概要
 };
 
-// 実装計画。作成時の PROJECT.md hash と紐付ける
-export type Plan = { specHash: string; createdAt: string; milestones: Milestone[] };
+// 実装計画。作成時の PROJECT.md hash と紐付ける。excluded は計画時に除外した AC と理由 (§6)
+export type Plan = { specHash: string; createdAt: string; milestones: Milestone[]; excluded: { acId: string; reason: string }[] };
 
 // 保存済みの計画を読む。存在しなければ null、読めなければ FatalError (§20)
 export async function loadPlan(root: string): Promise<Plan | null> {
@@ -31,7 +31,7 @@ export async function savePlan(root: string, plan: Plan): Promise<void> {
   await writeAtomic(projectPaths(root).plan, plan);
 }
 
-// 全 active AC がちょうど 1 つの milestone に割り当てられ、依存が先行していることなどを検査して問題を列挙する (§6)
+// 除外分を除く全 active AC がちょうど 1 つの milestone に割り当てられ、依存が先行していることなどを検査して問題を列挙する (§6)
 export function checkPlan(plan: Plan, spec: ProjectSpec): string[] {
   const problems: string[] = [];
   if (plan.specHash !== spec.hash) problems.push('Plan was created for a different PROJECT.md');
@@ -50,6 +50,7 @@ export function checkPlan(plan: Plan, spec: ProjectSpec): string[] {
       if (!plan.milestones.slice(0, index).some(previous => previous.id === dependency)) problems.push(`${milestone.id} depends on ${dependency}, which must come earlier`);
     }
   });
+  for (const { acId } of plan.excluded) assigned.add(acId);
   for (const id of active) if (!assigned.has(id)) problems.push(`${id} is assigned to no milestone`);
   return problems;
 }

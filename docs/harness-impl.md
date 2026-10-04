@@ -217,7 +217,7 @@ M02
 M03
 ```
 
-すべての active Acceptance Criteria は、いずれかの milestone に割り当てる。
+すべての active Acceptance Criteria は、いずれかの milestone に割り当てる。ただし、何かが起きないことを期待結果とする AC と、Minecraft・NeoForge・上流の Mod が担う挙動の AC は、計画時に理由とともに除外する。
 
 複数の Acceptance Criteria を一つの実装として確認する方が自然な場合は、同一 milestone にまとめる。
 
@@ -467,6 +467,8 @@ scenario の成否は assertion の観測結果によって判定する。
 
 永続化や multiplayer は Acceptance Criterion の内容に応じて scenario 内で必要な操作を行う。
 
+scenario は前提の構築と結果の観測を決定的なコマンドで行う。
+
 ---
 
 ## 15. 画面確認
@@ -688,7 +690,7 @@ checkpoint 作成後、その commit を次の milestone の復元地点とし�
 次の条件をすべて満たした場合、開発を完了する。
 
 - すべての planned milestone が checkpoint になっている
-- すべての active Acceptance Criteria がいずれかの完成 milestone に含まれている
+- 計画時に除外したものを除くすべての active Acceptance Criteria がいずれかの完成 milestone に含まれている
 - 最終 milestone の E2E が成功している
 - 最終 checkpoint が作成されている
 

@@ -28,7 +28,7 @@ const findings = object({ findings: { type: 'array', items: object({ title: stri
 const verdicts = object({ verdicts: { type: 'array', items: object({ issueId: string, status: { type: 'string', enum: ['resolved', 'unresolved'] }, note: string }) } });
 const schemas: Record<AgentRole, JsonSchema> = {
   implementation: object({ summary: string, changedFiles: strings, responses: { type: 'array', items: object({ issueId: string, decision: { type: 'string', enum: ['fixed', 'accepted'] }, reason: string }) } }),
-  plan: object({ milestones: { type: 'array', items: object({ id: string, acIds: strings, dependsOn: strings, summary: string, scope: strings, e2eSummary: string }) } }),
+  plan: object({ milestones: { type: 'array', items: object({ id: string, acIds: strings, dependsOn: strings, summary: string, scope: strings, e2eSummary: string }) }, excluded: { type: 'array', items: object({ acId: string, reason: string }) } }),
   spec_edit: object({ projectMarkdown: string, summary: string }),
   code_review: findings,
   code_recheck: verdicts,
@@ -44,7 +44,7 @@ export function outputSchema(role: AgentRole): JsonSchema {
 // agent 出力を役割の schema で検証して型付きで返す。不正な出力は ExecutionFailure (§17)
 export function validateOutput<T>(role: AgentRole, value: unknown): T {
   const problems = validate(outputSchema(role), value, 'output');
-  if (problems.length) throw new ExecutionFailure(`Invalid ${role} output: ${problems.slice(0, 5).join('; ')}`, role);
+  if (problems.length) throw new ExecutionFailure(`Invalid ${role} output: ${problems.slice(0, 5).join('; ')}`);
   return value as T;
 }
 
@@ -54,14 +54,14 @@ export function classifyAgentFailure(role: AgentRole, result: ProcessResult): Fa
   if (/not logged in|please (run )?log ?in|unauthori[sz]ed|authentication (failed|required|error)|invalid api key|oauth token/i.test(output)) {
     return new FatalError(`${role} agent authentication is unavailable: ${output.trim()}`);
   }
-  return new ExecutionFailure(`${role} agent failed (exit ${result.code}): ${output.trim()}`, role);
+  return new ExecutionFailure(`${role} agent failed (exit ${result.code}): ${output.trim()}`);
 }
 
 // outputSchema で使う JSON Schema の範囲 (type・enum・properties・required・items) で値を検証する
 function validate(schema: JsonSchema, value: unknown, at: string): string[] {
   const types = [schema.type].flat() as string[];
   const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : Number.isInteger(value) ? 'integer' : typeof value;
-  if (!types.includes(actual) && !(actual === 'integer' && types.includes('number'))) return [`${at} must be ${types.join(' or ')}`];
+  if (!types.includes(actual)) return [`${at} must be ${types.join(' or ')}`];
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return [`${at} must be one of ${schema.enum.join(', ')}`];
   if (actual === 'array') return (value as unknown[]).flatMap((item, index) => validate(schema.items as JsonSchema, item, `${at}[${index}]`));
   if (actual === 'object') {

@@ -52,10 +52,10 @@ export async function ensurePlan(ctx: WorkflowContext): Promise<Plan> {
   return createPlan(ctx);
 }
 
-// complete の条件を満たすか確認し、満たせば phase を complete にして計画の固定を解除する (§22)
+// complete の条件 (計画で除外した AC を除く全 active AC の checkpoint) を満たすか確認し、満たせば phase を complete にして計画の固定を解除する (§22)
 export async function completeProject(ctx: WorkflowContext, plan: Plan): Promise<void> {
   const done = new Set(ctx.state.checkpoints.map(checkpoint => checkpoint.milestone));
-  const covered = new Set(ctx.state.checkpoints.flatMap(checkpoint => checkpoint.acIds));
+  const covered = new Set([...ctx.state.checkpoints.flatMap(checkpoint => checkpoint.acIds), ...plan.excluded.map(item => item.acId)]);
   const missing = [
     ...plan.milestones.filter(milestone => !done.has(milestone.id)).map(milestone => milestone.id),
     ...activeCriteria(ctx.spec).filter(criterion => !covered.has(criterion.id)).map(criterion => criterion.id),

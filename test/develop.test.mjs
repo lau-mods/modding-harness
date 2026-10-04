@@ -102,6 +102,21 @@ test('develop stops with fatal when PROJECT.md changes during implementation', a
   assert.equal((await collectStatus(project.root)).fatal, state.fatal.reason);
 });
 
+test('develop completes when the plan excludes criteria from E2E', async () => {
+  const project = setupProject({
+    claude: {
+      plan: [{ output: { milestones: [{ ...PLAN.milestones[0], acIds: ['AC-F001-001'] }], excluded: [{ acId: 'AC-F001-002', reason: 'Block textures are rendered by Minecraft' }] } }],
+      code_review: [{ output: { findings: [] } }],
+      visual_review: [{ output: { findings: [] } }],
+    },
+    codex: [{ files: implementationFiles({ 'src/FEATURE_OK': 'yes' }) }],
+  });
+
+  assert.equal(await developProject(project.root), 'complete');
+  assert.match(project.git('log', '-1', '--format=%B'), /Harness-AC: AC-F001-001\n/);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(project.root, '.harness-plan.json'), 'utf8')).excluded.map(item => item.acId), ['AC-F001-002']);
+});
+
 test('develop stops with fatal before planning when preflight fails', async () => {
   const project = setupProject({ claude: { plan: [{ output: PLAN }] } });
   writeFileSync(path.join(project.root, '.harness-state/runtime/server/eula.txt'), 'eula=false\n');
@@ -124,7 +139,7 @@ Expected Result:
 The feature is disabled.
 
 ## Cross-cutting Requirements`);
-  const plan = { milestones: [PLAN.milestones[0], { id: 'M02', acIds: ['AC-F001-003'], dependsOn: ['M01'], summary: 'Disable', scope: ['src/'], e2eSummary: 'Disable scenario' }] };
+  const plan = { milestones: [PLAN.milestones[0], { id: 'M02', acIds: ['AC-F001-003'], dependsOn: ['M01'], summary: 'Disable', scope: ['src/'], e2eSummary: 'Disable scenario' }], excluded: [] };
   const project = setupProject({
     claude: {
       plan: [{ output: PLAN }, { output: plan }],

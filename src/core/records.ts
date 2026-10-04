@@ -1,6 +1,6 @@
-import { mkdir, readdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { exists, readJson, writeAtomic } from './fs.js';
+import { writeAtomic } from './fs.js';
 import { projectPaths } from './paths.js';
 
 // 外部実行 1 回分の記録。何を・何回目に実行し、成功したか・失敗理由を残す (§29)
@@ -28,18 +28,6 @@ export async function allocateRunDir(root: string, operation: string, milestone:
 // 実行記録を logDir の record.json として保存する
 export async function writeRecord(record: ExecutionRecord): Promise<void> {
   await writeAtomic(path.join(record.logDir, 'record.json'), record);
-}
-
-// 実行記録を古い順に読む。milestone 指定時はその milestone の記録だけを返す
-export async function readRecords(root: string, milestone?: string): Promise<ExecutionRecord[]> {
-  const runs = projectPaths(root).runs;
-  if (!await exists(runs)) return [];
-  const records: ExecutionRecord[] = [];
-  for (const name of (await readdir(runs)).sort()) {
-    const file = path.join(runs, name, 'record.json');
-    if (await exists(file)) records.push(await readJson(file) as ExecutionRecord);
-  }
-  return milestone === undefined ? records : records.filter(record => record.milestone === milestone);
 }
 
 // 記録ディレクトリを確保して action を実行し、成否を実行記録として保存する (§29)

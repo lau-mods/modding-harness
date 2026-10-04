@@ -20,13 +20,6 @@ export async function writeAtomic(file: string, value: unknown): Promise<void> {
   await rename(temp, file);
 }
 
-// root 配下の相対パスを絶対パスへ解決する。root の外を指すパスは例外にする
-export function safePath(root: string, relative: string): string {
-  const full = path.resolve(root, relative);
-  if (full !== root && !full.startsWith(root + path.sep)) throw new Error(`Path escapes the project: ${relative}`);
-  return full;
-}
-
 // 文字列または Buffer の sha256 を返す
 export function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');

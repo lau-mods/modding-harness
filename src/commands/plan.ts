@@ -30,9 +30,9 @@ export async function createPlan(ctx: WorkflowContext): Promise<Plan> {
   };
   const plan = await retrying(ctx, 'plan', async logDir => {
     const proposal = await proposePlan(agentCall(ctx, 'review', logDir), input);
-    const candidate: Plan = { specHash: ctx.spec.hash, createdAt: new Date().toISOString(), milestones: proposal.milestones };
+    const candidate: Plan = { specHash: ctx.spec.hash, createdAt: new Date().toISOString(), milestones: proposal.milestones, excluded: proposal.excluded };
     const problems = checkPlan(candidate, ctx.spec);
-    if (problems.length) throw new ExecutionFailure(`Claude proposed an invalid plan: ${problems.join('; ')}`, 'plan');
+    if (problems.length) throw new ExecutionFailure(`Claude proposed an invalid plan: ${problems.join('; ')}`);
     return candidate;
   });
   await savePlan(ctx.root, plan);

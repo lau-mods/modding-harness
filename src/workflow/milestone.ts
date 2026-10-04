@@ -151,7 +151,7 @@ export async function checkpointStep(ctx: WorkflowContext, milestone: Milestone)
 // 作業ツリーを直前 checkpoint へ復元し、指摘集合・review session・E2E 結果を含む milestone の runtime state を初期化して rollback 履歴を残す (§18)
 export async function rollbackMilestone(ctx: WorkflowContext, milestone: Milestone, failure: RetryExhausted): Promise<void> {
   await enterPhase(ctx, 'rollback');
-  const base = ctx.state.milestone?.baseCommit ?? await head(ctx.root);
+  const base = current(ctx).baseCommit;
   await restoreCommit(ctx.root, base);
   ctx.state.rollbacks.push({ milestone: milestone.id, operation: failure.operation, reason: failure.lastFailure.message, restoredTo: base, at: new Date().toISOString() });
   ctx.state.milestone = newMilestoneRuntime(milestone.id, base);
@@ -179,5 +179,5 @@ function current(ctx: WorkflowContext): MilestoneRuntime {
 }
 
 function criteriaOf(ctx: WorkflowContext, milestone: Milestone): AcceptanceCriterion[] {
-  return milestone.acIds.map(id => findCriterion(ctx.spec, id)).filter((criterion): criterion is AcceptanceCriterion => criterion !== undefined);
+  return milestone.acIds.map(id => findCriterion(ctx.spec, id)!);
 }

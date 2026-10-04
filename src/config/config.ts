@@ -21,7 +21,6 @@ export type RuntimeConfig = {
 
 // .harness-config.json の内容 (§26)
 export type HarnessConfig = {
-  project: { buildFile: string };
   gradle: { compile: string; build: string };
   agents: { implementation: AgentConfig; review: AgentConfig };
   runtime: RuntimeConfig;
@@ -41,7 +40,7 @@ export async function loadConfig(root: string): Promise<HarnessConfig> {
 export function checkConfig(value: unknown): string[] {
   const problems: string[] = [];
   const get = (key: string): unknown => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], value);
-  for (const key of ['project.buildFile', 'gradle.compile', 'gradle.build', 'agents.implementation.command', 'agents.review.command', 'runtime.command', 'runtime.world', 'runtime.server.directory', 'runtime.server.address']) {
+  for (const key of ['gradle.compile', 'gradle.build', 'agents.implementation.command', 'agents.review.command', 'runtime.command', 'runtime.world', 'runtime.server.directory', 'runtime.server.address']) {
     const field = get(key);
     if (typeof field !== 'string' || !field) problems.push(`${key} must be a non-empty string`);
   }
@@ -58,7 +57,6 @@ export function checkConfig(value: unknown): string[] {
 // init 時に書き出す既定の設定を返す
 export function defaultConfig(): HarnessConfig {
   return {
-    project: { buildFile: 'build.gradle' },
     gradle: { compile: 'classes', build: 'build' },
     agents: { implementation: { command: 'codex' }, review: { command: 'claude' } },
     runtime: {

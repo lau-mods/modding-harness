@@ -18,13 +18,10 @@ export async function writeProjectTemplate(root: string): Promise<void> {
   if (!await exists(target)) await copyFile(path.join(harnessRoot(), 'templates', 'PROJECT.md'), target);
 }
 
-// build file を検出して既定の .harness-config.json を書き出す
+// 既定の .harness-config.json を書き出す
 export async function writeDefaultConfig(root: string): Promise<void> {
   const target = projectPaths(root).config;
-  if (await exists(target)) return;
-  const config = defaultConfig();
-  if (!await exists(path.join(root, 'build.gradle')) && await exists(path.join(root, 'build.gradle.kts'))) config.project.buildFile = 'build.gradle.kts';
-  await writeAtomic(target, config);
+  if (!await exists(target)) await writeAtomic(target, defaultConfig());
 }
 
 // .harness-state/ を .gitignore に追加する

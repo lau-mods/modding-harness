@@ -42,7 +42,8 @@ export function planPrompt(input: PlanInput): string {
   return `You plan the development of a NeoForge Minecraft mod. Read the project files you need.
 
 Split the work into milestones:
-- Assign every active Acceptance Criterion below to exactly one milestone.
+- Exclude two kinds of Acceptance Criteria and list each in excluded with its reason: criteria whose Expected Result states that something does not happen, and criteria whose behavior belongs to Minecraft, NeoForge or an upstream mod rather than this mod.
+- Assign every other active Acceptance Criterion below to exactly one milestone.
 - Group criteria into one milestone when a single implementation verifies them together naturally.
 - Number milestones M01, M02, M03, ... in execution order. dependsOn lists earlier milestones only.
 - summary describes what the milestone implements, scope lists the files or areas expected to change, e2eSummary describes how the Minecraft E2E scenarios verify the criteria.
@@ -153,7 +154,8 @@ const SCENARIO_CONTRACT = `E2E scenario contract:
     screenshot(clients[0], 'inventory');
   });
   mct(client, ...args) runs an MC Pilot command for that client and returns its game data. waitFor(read, until, timeoutMs) polls until the observed state settles. check(name, expected, actual, passed?) records an assertion with the observed value as actual. screenshot(client, name) saves a screenshot for visual review. scenario() writes the result file and records a thrown error as a failed scenario_error assertion.
-- Each assertion compares an observed game value with the Expected Result. Take screenshots when an Expected Result includes visual content.`;
+- Each assertion compares an observed game value with the Expected Result. Take screenshots when an Expected Result includes visual content.
+- Set up preconditions and observe results with deterministic commands, for example /setblock, /give, /data get, /loot and /execute if. Each observation reads a definite value once; avoid loops that repeat random actions such as killing mobs or bartering until a drop appears.`;
 
 function block(title: string, body: string): string {
   return `## ${title}\n\n${body}`;

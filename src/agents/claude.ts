@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ExecutionFailure } from '../core/errors.js';
 import type { ScenarioResult } from '../e2e/scenario.js';
-import type { Milestone } from '../plan/plan.js';
+import type { Milestone, Plan } from '../plan/plan.js';
 import type { IssueVerdict, ReviewFinding, ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
 import { AGENT_TIMEOUT_MS, classifyAgentFailure, outputSchema, validateOutput } from './agent.js';
@@ -13,7 +13,7 @@ import { codeRecheckPrompt, codeReviewPrompt, planPrompt, specEditPrompt, visual
 export type PlanInput = { projectMarkdown: string; criteria: AcceptanceCriterion[]; projectFiles: string[] };
 
 // Claude が提案する計画案。検証は Harness 側で行う
-export type PlanProposal = { milestones: Milestone[] };
+export type PlanProposal = Pick<Plan, 'milestones' | 'excluded'>;
 
 // 仕様変更の入力 (§23)
 export type SpecEditInput = { request: string; projectMarkdown: string };
@@ -59,8 +59,8 @@ export async function runClaude<T>(call: AgentCall, request: AgentRequest): Prom
   try { envelope = JSON.parse(result.stdout) as typeof envelope; }
   catch { throw classifyAgentFailure(request.role, result); }
   if (result.code !== 0 || envelope.is_error || envelope.subtype !== 'success') throw classifyAgentFailure(request.role, result);
-  if (envelope.structured_output === undefined) throw new ExecutionFailure('Claude returned no structured output', request.role);
-  return { output: validateOutput<T>(request.role, envelope.structured_output), sessionId: envelope.session_id ?? request.sessionId };
+  if (envelope.structured_output === undefined) throw new ExecutionFailure('Claude returned no structured output');
+  return { output: validateOutput<T>(request.role, envelope.structured_output), sessionId: envelope.session_id ?? null };
 }
 
 // active AC を milestone に割り当てた計画案を Claude に作成させる (§6)

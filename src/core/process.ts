@@ -19,7 +19,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
     let timedOut = false;
     const timer = options.timeoutMs === undefined ? undefined : setTimeout(() => {
       timedOut = true;
-      try { process.kill(-child.pid!, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+      process.kill(-child.pid!, 'SIGKILL');
     }, options.timeoutMs);
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
@@ -32,7 +32,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
     child.on('close', code => {
       clearTimeout(timer);
       const output = { code: code ?? 1, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8'), durationMs: Date.now() - started };
-      if (timedOut) reject(new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`, path.basename(command)));
+      if (timedOut) reject(new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`));
       else resolve(output);
     });
     child.stdin.end(options.input ?? '');
@@ -48,7 +48,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
 
 // 終了コードが 0 でなければ ExecutionFailure を投げる (§17)
 export function requireSuccess(result: ProcessResult, operation: string): ProcessResult {
-  if (result.code !== 0) throw new ExecutionFailure(`${operation} failed (exit ${result.code}): ${tail(result.stderr + result.stdout, 2000)}`, operation);
+  if (result.code !== 0) throw new ExecutionFailure(`${operation} failed (exit ${result.code}): ${tail(result.stderr + result.stdout, 2000)}`);
   return result;
 }
 

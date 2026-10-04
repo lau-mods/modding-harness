@@ -2,11 +2,7 @@
 export class FatalError extends Error {}
 
 // 外部プロセスまたは実行環境上の失敗。同一状態での再試行対象 (§17)
-export class ExecutionFailure extends Error {
-  constructor(message: string, readonly operation: string, options?: ErrorOptions) {
-    super(message, options);
-  }
-}
+export class ExecutionFailure extends Error {}
 
 // 同一処理が上限回数まで連続して失敗したこと。milestone rollback の契機 (§18)
 export class RetryExhausted extends Error {

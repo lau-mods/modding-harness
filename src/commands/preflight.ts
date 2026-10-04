@@ -17,7 +17,7 @@ export async function preflight(root: string, runner: Runner = run): Promise<voi
       for (const name of config.clients) {
         stage = `read world state on ${name}`;
         const world = await mcPilot(root, config, ['--client', name, 'status', 'world'], runner) as { success?: boolean; error?: unknown } | null;
-        if (world?.success !== true) throw new ExecutionFailure(`${name} returned ${JSON.stringify(world?.error ?? world)}`, 'preflight');
+        if (world?.success !== true) throw new ExecutionFailure(`${name} returned ${JSON.stringify(world?.error ?? world)}`);
       }
       stage = 'stop server and clients';
     } catch (error) {

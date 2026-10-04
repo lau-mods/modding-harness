@@ -40,10 +40,12 @@ test('retired criteria and invalid IDs are detected', () => {
 test('plans assign every active criterion exactly once in milestone order', () => {
   const spec = parseProject(SPEC);
   assert.deepEqual(checkPlan({ specHash: spec.hash, createdAt: '', ...PLAN }, spec), []);
-  const problems = checkPlan({ specHash: spec.hash, createdAt: '', milestones: [{ ...PLAN.milestones[0], id: 'M02', acIds: ['AC-F001-001'] }] }, spec);
+  const problems = checkPlan({ specHash: spec.hash, createdAt: '', milestones: [{ ...PLAN.milestones[0], id: 'M02', acIds: ['AC-F001-001'] }], excluded: [] }, spec);
   assert.ok(problems.some(problem => problem.includes('ID M01')));
   assert.ok(problems.some(problem => problem.includes('AC-F001-002 is assigned to no milestone')));
   assert.equal(milestoneId(9), 'M10');
+  const excluded = { specHash: spec.hash, createdAt: '', milestones: [{ ...PLAN.milestones[0], acIds: ['AC-F001-001'] }], excluded: [{ acId: 'AC-F001-002', reason: 'Owned by Minecraft' }] };
+  assert.deepEqual(checkPlan(excluded, spec), []);
 });
 
 test('issue sets stay fixed and settle through resolved or accepted', () => {

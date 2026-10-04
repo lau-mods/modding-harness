@@ -26,7 +26,7 @@ async function fingerprintDir(dir: string): Promise<string> {
   const entries: string[] = [];
   const walk = async (current: string): Promise<void> => {
     for (const entry of (await readdir(current, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (['node_modules', '.git', '.harness-state'].includes(entry.name)) continue;
+      if (['node_modules', '.git'].includes(entry.name)) continue;
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) await walk(full);
       else if (entry.isFile()) entries.push(`${path.relative(dir, full)}:${sha256(await readFile(full))}`);
