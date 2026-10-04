@@ -219,7 +219,7 @@ M03
 
 すべての active Acceptance Criteria は、いずれかの milestone に割り当てる。ただし、何かが起きないことを期待結果とする AC のうちその抑止をこの Mod が実装しないものと、Minecraft・NeoForge・上流の Mod が担う挙動の AC は、計画時に理由とともに除外する。
 
-複数の Acceptance Criteria を一つの実装として確認する方が自然な場合は、同一 milestone にまとめる。
+milestone は Feature 単位以上の大きさとし、実装を共有する Feature は同一 milestone にまとめる。
 
 milestone の実装開始後は、その開発実行が完了するまで計画を固定する。
 

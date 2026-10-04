@@ -44,7 +44,7 @@ export function planPrompt(input: PlanInput): string {
 Split the work into milestones:
 - Exclude two kinds of Acceptance Criteria and list each in excluded with its reason: criteria whose Expected Result states that something does not happen unless this mod itself implements that prevention, and criteria whose behavior belongs to Minecraft, NeoForge or an upstream mod rather than this mod.
 - Assign every other active Acceptance Criterion below to exactly one milestone.
-- Group criteria into one milestone when a single implementation verifies them together naturally.
+- Keep milestones large: put every criterion of a Feature into one milestone, and put Features that share implementation into the same milestone. Start a new milestone only for work that builds on an earlier milestone.
 - Number milestones M01, M02, M03, ... in execution order. dependsOn lists earlier milestones only.
 - summary describes what the milestone implements, scope lists the files or areas expected to change, e2eSummary describes how the Minecraft E2E scenarios verify the criteria.
 
