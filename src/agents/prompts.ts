@@ -42,7 +42,7 @@ export function planPrompt(input: PlanInput): string {
   return `You plan the development of a NeoForge Minecraft mod. Read the project files you need.
 
 Split the work into milestones:
-- Exclude two kinds of Acceptance Criteria and list each in excluded with its reason: criteria whose Expected Result states that something does not happen, and criteria whose behavior belongs to Minecraft, NeoForge or an upstream mod rather than this mod.
+- Exclude two kinds of Acceptance Criteria and list each in excluded with its reason: criteria whose Expected Result states that something does not happen unless this mod itself implements that prevention, and criteria whose behavior belongs to Minecraft, NeoForge or an upstream mod rather than this mod.
 - Assign every other active Acceptance Criterion below to exactly one milestone.
 - Group criteria into one milestone when a single implementation verifies them together naturally.
 - Number milestones M01, M02, M03, ... in execution order. dependsOn lists earlier milestones only.

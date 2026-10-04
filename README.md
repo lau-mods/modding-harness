@@ -94,7 +94,7 @@ git add -A && git commit -m "Define the product"
 harness develop
 ```
 
-計画では、何かが起きないことを期待結果とする AC と、Minecraft・NeoForge・上流の Mod が担う挙動の AC を、理由とともに除外します (`.harness-plan.json` の `excluded`)。
+計画では、何かが起きないことを期待結果とする AC のうちその抑止をこの Mod が実装しないものと、Minecraft・NeoForge・上流の Mod が担う挙動の AC を、理由とともに除外します (`.harness-plan.json` の `excluded`)。
 
 `develop` は開始時に preflight (server と全 client の起動・world 参加・停止の確認) を行い、計画が無ければ作成し、全 milestone を順に checkpoint まで進めます。計画だけを先に確認したい場合は `harness plan` を使います。進行状況は別の端末で `harness status` で確認できます。
 
