@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { chatProject } from '../dist/commands/chat.js';
@@ -115,6 +115,24 @@ test('develop completes when the plan excludes criteria from E2E', async () => {
   assert.equal(await developProject(project.root), 'complete');
   assert.match(project.git('log', '-1', '--format=%B'), /Harness-AC: AC-F001-001\n/);
   assert.deepEqual(JSON.parse(readFileSync(path.join(project.root, '.harness-plan.json'), 'utf8')).excluded.map(item => item.acId), ['AC-F001-002']);
+});
+
+test('develop reruns only the scenarios that have not passed', async () => {
+  const manifest = JSON.stringify({ scenarios: [
+    { id: 'stable', acIds: ['AC-F001-002'], command: ['node', 'tests/e2e/scenarios/main.mjs'] },
+    { id: 'main', acIds: ['AC-F001-001'], command: ['node', 'tests/e2e/scenarios/main.mjs'] },
+  ] });
+  const project = setupProject({
+    claude: { plan: [{ output: PLAN }], code_review: [{ output: { findings: [] } }], visual_review: [{ output: { findings: [] } }] },
+    codex: [{ files: implementationFiles({ 'tests/e2e/manifest.json': manifest }) }, { files: { 'src/FEATURE_OK': 'yes' } }],
+  });
+
+  assert.equal(await developProject(project.root), 'complete');
+  const runs = path.join(project.root, '.harness-state/runs');
+  const executed = id => readdirSync(runs).filter(run => run.includes('-e2e-') && existsSync(path.join(runs, run, 'scenarios', id))).length;
+  assert.equal(executed('stable'), 1);
+  assert.equal(executed('main'), 2);
+  assert.match(project.calls().filter(call => call.agent === 'codex')[1].prompt, /already passed and are final[\s\S]*"stable"/);
 });
 
 test('develop stops with fatal before planning when preflight fails', async () => {

@@ -17,6 +17,7 @@ await scenario(async ({ clients }) => {
   execFileSync(control[0], [...control.slice(1), 'stop']);
   execFileSync(control[0], [...control.slice(1), 'start']);
   check('in_overworld', 'minecraft:overworld', mct(clients[0], 'status', 'world').dimension);
+  if (process.env.HARNESS_SCENARIO_ID !== 'main') return;
   check('feature_enabled', true, existsSync('src/FEATURE_OK'));
   screenshot(clients[0], 'shot');
 });

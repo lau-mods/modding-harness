@@ -5,6 +5,7 @@ import { FatalError } from '../core/errors.js';
 import { exists, readJson, writeAtomic } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
 import type { E2EFailureReport, E2ERunSummary } from '../e2e/e2e.js';
+import type { ScenarioDefinition } from '../e2e/manifest.js';
 import type { IssueSet } from '../review/issues.js';
 
 // 開発処理の phase (§24)
@@ -30,6 +31,7 @@ export type MilestoneRuntime = {
   e2e: E2ERunSummary | null; // 直前の E2E 結果
   e2eFailure: E2EFailureReport | null; // Codex に差し戻す E2E 失敗
   scenario: string | null; // 実行中の E2E scenario
+  passedScenarios: ScenarioDefinition[]; // 一度成功した scenario。再実行と変更を行わない
 };
 
 // Harness の永続化された実行状態
@@ -64,7 +66,7 @@ export async function saveState(root: string, state: HarnessState): Promise<void
 
 // milestone 開始時 (rollback 後の再開を含む) の runtime state を作る
 export function newMilestoneRuntime(milestone: string, baseCommit: string): MilestoneRuntime {
-  return { milestone, baseCommit, iteration: 0, buildFailure: null, codeReview: null, visualReview: null, e2e: null, e2eFailure: null, scenario: null };
+  return { milestone, baseCommit, iteration: 0, buildFailure: null, codeReview: null, visualReview: null, e2e: null, e2eFailure: null, scenario: null, passedScenarios: [] };
 }
 
 // 計画が固定中であれば計画・仕様の変更を拒否する (§6, §23)

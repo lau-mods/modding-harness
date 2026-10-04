@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { BuildResult } from '../build/gradle.js';
 import { ExecutionFailure } from '../core/errors.js';
 import type { E2EFailureReport } from '../e2e/e2e.js';
+import type { ScenarioDefinition } from '../e2e/manifest.js';
 import type { Milestone } from '../plan/plan.js';
 import type { IssueResponse, ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
@@ -20,6 +21,7 @@ export type ImplementationInput = {
   codeIssues: ReviewIssue[]; // 未解決のコードレビュー指摘
   visualIssues: ReviewIssue[]; // 未解決の画面確認指摘
   e2eFailure: E2EFailureReport | null; // 直前の E2E 結果 (§19)
+  passedScenarios: ScenarioDefinition[]; // 成功済みで変更しない E2E scenario
 };
 
 // Codex による実装の結果。ファイルは Codex が workspace 上で直接編集する

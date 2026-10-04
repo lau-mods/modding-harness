@@ -19,7 +19,7 @@ Edit source, resources, build configuration and E2E scenarios as needed.
 Rules:
 - PROJECT.md and the harness installation are read-only during implementation. Any change to them stops the harness.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
-${feedback.length ? `- Address every item in the feedback below with the smallest change that resolves it, keeping the surrounding code as it is. For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a concrete reason when the current code is correct as it is.\n` : ''}
+${input.passedScenarios.length ? `- These E2E scenarios already passed and are final; keep their manifest entries and files unchanged: ${JSON.stringify(input.passedScenarios)}\n` : ''}${feedback.length ? `- Address every item in the feedback below with the smallest change that resolves it, keeping the surrounding code as it is. For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a concrete reason when the current code is correct as it is.\n` : ''}
 ${CODE_STYLE}
 
 ${SCENARIO_CONTRACT}

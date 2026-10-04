@@ -172,7 +172,7 @@ scenario は次の形式で `HARNESS_RESULT_FILE` を書きます。
 }
 ```
 
-scenario の成否は assertion で判定し、1 件以上の assertion がすべて成功したとき成功になります。結果を書いた scenario は、assertion の成否にかかわらず終了コード 0 で終了します。0 以外の終了コードは scenario 自体の実行失敗として再試行の対象になります。
+scenario の成否は assertion で判定し、1 件以上の assertion がすべて成功したとき成功になります。一度成功した scenario は、同じ milestone 内で再実行も変更もしません (screenshot を取得する scenario は画面確認のために再実行します)。結果を書いた scenario は、assertion の成否にかかわらず終了コード 0 で終了します。0 以外の終了コードは scenario 自体の実行失敗として再試行の対象になります。
 
 ## 設定
 

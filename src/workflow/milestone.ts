@@ -7,6 +7,7 @@ import { RetryExhausted } from '../core/errors.js';
 import { allocateRunDir, writeRecord } from '../core/records.js';
 import { failureReport, needsVisualReview, runE2E } from '../e2e/e2e.js';
 import type { E2ERunSummary } from '../e2e/e2e.js';
+import { judge } from '../e2e/scenario.js';
 import { changedFilesFrom, createCheckpoint, diffFrom, head, restoreCommit } from '../git/git.js';
 import type { Milestone } from '../plan/plan.js';
 import { applyResponses, applyVerdicts, createIssueSet, isSettled, pendingIssues } from '../review/issues.js';
@@ -60,6 +61,7 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
     codeIssues: pendingIssues(runtime.codeReview),
     visualIssues: pendingIssues(runtime.visualReview),
     e2eFailure: runtime.e2eFailure,
+    passedScenarios: runtime.passedScenarios,
   };
   const output = await retrying(ctx, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir), input));
   await guardIntegrity(ctx);
@@ -108,7 +110,7 @@ export async function e2eStep(ctx: WorkflowContext, milestone: Milestone): Promi
   await enterPhase(ctx, 'e2e');
   const runtime = current(ctx);
   const criteria = criteriaOf(ctx, milestone);
-  const summary = await retrying(ctx, 'e2e', logDir => runE2E(ctx.root, ctx.config, criteria, logDir, ctx.runner, {
+  const summary = await retrying(ctx, 'e2e', logDir => runE2E(ctx.root, ctx.config, criteria, runtime.passedScenarios.map(scenario => scenario.id), logDir, ctx.runner, {
     onScenario: async scenarioId => {
       runtime.scenario = scenarioId;
       await saveState(ctx.root, ctx.state);
@@ -116,6 +118,8 @@ export async function e2eStep(ctx: WorkflowContext, milestone: Milestone): Promi
   }));
   runtime.scenario = null;
   runtime.e2e = summary;
+  // screenshot を取る scenario は画面確認のために再実行する
+  runtime.passedScenarios.push(...summary.runs.filter(run => judge(run.result) && !run.result.screenshots.length).map(run => run.scenario));
   runtime.e2eFailure = summary.passed ? null : failureReport(summary, criteria);
   await saveState(ctx.root, ctx.state);
   return summary;

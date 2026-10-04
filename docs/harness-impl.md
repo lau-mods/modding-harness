@@ -442,6 +442,8 @@ scenario result は machine-readable JSON とする。
 
 scenario の成否は assertion の観測結果によって判定する。
 
+一度成功した scenario は、同じ milestone 内で再実行も変更もしない。screenshot を取得する scenario は画面確認のために再実行する。
+
 ---
 
 ## 14. 実機テストの範囲

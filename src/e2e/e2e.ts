@@ -34,8 +34,8 @@ export type E2EFailureReport = {
 // scenario の進行を state へ反映するためのフック (§24 Current E2E scenario)
 export type E2EHooks = { onScenario?: (scenarioId: string) => Promise<void> };
 
-// mod を配置して server と client を起動し、milestone の AC に対応する scenario を順に実行して停止する (§12, §14)
-export async function runE2E(root: string, config: HarnessConfig, criteria: AcceptanceCriterion[], logDir: string, runner: Runner, hooks?: E2EHooks): Promise<E2ERunSummary> {
+// mod を配置して server と client を起動し、milestone の AC に対応する scenario のうち成功済み (passed) 以外を順に実行して停止する (§12, §14)
+export async function runE2E(root: string, config: HarnessConfig, criteria: AcceptanceCriterion[], passed: string[], logDir: string, runner: Runner, hooks?: E2EHooks): Promise<E2ERunSummary> {
   const acIds = criteria.map(criterion => criterion.id);
   const failed = (uncovered: string[], problems: string[]): E2ERunSummary => ({ passed: false, runs: [], uncovered, problems, screenshots: [], logFiles: [] });
   let manifest;
@@ -43,6 +43,8 @@ export async function runE2E(root: string, config: HarnessConfig, criteria: Acce
   catch (error) { return failed(acIds, [(error as Error).message]); }
   const uncovered = uncoveredCriteria(manifest, acIds);
   if (uncovered.length) return failed(uncovered, []);
+  const scenarios = selectScenarios(manifest, acIds).filter(scenario => !passed.includes(scenario.id));
+  if (!scenarios.length) return { passed: true, runs: [], uncovered: [], problems: [], screenshots: [], logFiles: [] };
 
   await deployMod(root, config.runtime, await findModJar(root));
   const runs: ScenarioRun[] = [];
@@ -50,7 +52,7 @@ export async function runE2E(root: string, config: HarnessConfig, criteria: Acce
   let logFiles: string[] = [];
   try {
     session = await startRuntime(root, config.runtime, path.join(logDir, 'runtime'), runner);
-    for (const scenario of selectScenarios(manifest, acIds)) {
+    for (const scenario of scenarios) {
       await hooks?.onScenario?.(scenario.id);
       runs.push(await runScenario(root, config.runtime, scenario, session, path.join(logDir, 'scenarios', scenario.id), runner));
     }
