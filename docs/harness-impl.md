@@ -818,7 +818,7 @@ Minecraft E2E を使用するプロジェクトでは、次の環境を事前に
 - world 保存先
 - server/client log の取得先
 
-複数 client を必要とする Acceptance Criterion では、scenario が必要な数の client を起動して操作する。
+Harness は設定された client を起動し、world への参加を確認してから scenario を実行する。複数 client を必要とする Acceptance Criterion では、scenario がそれらの client を操作する。
 
 world 再読込を必要とする Acceptance Criterion では、scenario が server/client を再起動して同じ world を開く。
 

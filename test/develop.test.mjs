@@ -53,7 +53,8 @@ test('develop runs build, review, E2E and visual loops until the checkpoint', as
   assert.equal(state.rollbacks.length, 0);
 
   const mct = project.mctLog();
-  assert.ok(mct.some(line => line.startsWith('client launch harness-a')));
+  assert.ok(mct.some(line => /^client launch harness-a --server 127\.0\.0\.1:25599 --ws-port \d+ --account harness_a --force$/.test(line)));
+  assert.ok(mct.some(line => line.startsWith('client wait-ready harness-a')));
   assert.ok(mct.some(line => line.startsWith('screenshot')));
   assert.ok(mct.some(line => line === 'client stop harness-a'));
   const server = JSON.parse(readFileSync(path.join(project.root, '.harness-state/runtime/server.json'), 'utf8'));

@@ -7,6 +7,7 @@ const args = process.argv.slice(2);
 appendFileSync(path.join(process.env.FAKE_STATE, 'mct.log'), args.join(' ') + '\n');
 let data = {};
 if (args[0] === '--cli-version') data = { version: 'fake' };
+if (args[0] === 'client' && args[1] === 'wait-ready') data = { connected: true, inWorld: true };
 if (args[0] === 'client' && args[1] === 'list') data = { clients: [{ name: 'harness-a', running: false, loader: 'neoforge' }] };
 if (args[0] === 'screenshot') {
   const output = args[args.indexOf('--output') + 1];

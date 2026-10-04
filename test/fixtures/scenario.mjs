@@ -12,8 +12,6 @@ if (existsSync(failures)) {
   }
 }
 const mct = (...args) => execFileSync(process.env.HARNESS_MCT, args);
-const [client] = JSON.parse(process.env.HARNESS_CLIENTS);
-mct('client', 'launch', client, '--server', process.env.HARNESS_SERVER_ADDRESS);
 const control = JSON.parse(process.env.HARNESS_SERVER_CONTROL);
 execFileSync(control[0], [...control.slice(1), 'stop']);
 execFileSync(control[0], [...control.slice(1), 'start']);

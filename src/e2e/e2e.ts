@@ -5,7 +5,7 @@ import { exists } from '../core/fs.js';
 import type { Runner } from '../core/process.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
 import { loadManifest, selectScenarios, uncoveredCriteria } from './manifest.js';
-import { collectLogs, deployMod, startRuntime, stopClients, stopRuntime } from './runtime.js';
+import { collectLogs, deployMod, startRuntime, stopRuntime } from './runtime.js';
 import type { RuntimeSession } from './runtime.js';
 import { judge, runScenario } from './scenario.js';
 import type { Assertion, ScenarioResult, ScenarioRun } from './scenario.js';
@@ -34,7 +34,7 @@ export type E2EFailureReport = {
 // scenario の進行を state へ反映するためのフック (§24 Current E2E scenario)
 export type E2EHooks = { onScenario?: (scenarioId: string) => Promise<void> };
 
-// mod を配置して server を起動し、milestone の AC に対応する scenario を順に実行して停止する (§12, §14)
+// mod を配置して server と client を起動し、milestone の AC に対応する scenario を順に実行して停止する (§12, §14)
 export async function runE2E(root: string, config: HarnessConfig, criteria: AcceptanceCriterion[], logDir: string, runner: Runner, hooks?: E2EHooks): Promise<E2ERunSummary> {
   const acIds = criteria.map(criterion => criterion.id);
   const failed = (uncovered: string[], problems: string[]): E2ERunSummary => ({ passed: false, runs: [], uncovered, problems, screenshots: [], logFiles: [] });
@@ -53,7 +53,6 @@ export async function runE2E(root: string, config: HarnessConfig, criteria: Acce
     for (const scenario of selectScenarios(manifest, acIds)) {
       await hooks?.onScenario?.(scenario.id);
       runs.push(await runScenario(root, config.runtime, scenario, session, path.join(logDir, 'scenarios', scenario.id), runner));
-      await stopClients(root, config.runtime, runner);
     }
   } finally {
     await stopRuntime(root, config.runtime, runner);

@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import type { RuntimeConfig } from '../config/config.js';
 import { ExecutionFailure, FatalError } from '../core/errors.js';
@@ -17,6 +19,7 @@ type ServerProcess = { pid: number | null; logFile: string };
 const SERVER_READY_TIMEOUT_MS = 10 * 60 * 1000;
 const SERVER_STOP_TIMEOUT_MS = 2 * 60 * 1000;
 const MCT_TIMEOUT_MS = 5 * 60 * 1000;
+const CLIENT_READY_TIMEOUT_SECONDS = 180;
 
 // MC Pilot に渡す環境変数。MC Pilot の home と cache は project の .harness-state/runtime に置く
 export function pilotEnv(root: string): NodeJS.ProcessEnv {
@@ -49,7 +52,7 @@ export async function deployMod(root: string, config: RuntimeConfig, modJar: str
   await writeAtomic(record, deployed);
 }
 
-// 設定された client の存在を確認して server を起動する。起動失敗・crash は ExecutionFailure (§17, §28)
+// 設定された client の存在を確認し、server を起動して全 client を world に参加させる。起動失敗・crash は ExecutionFailure (§17, §27, §28)
 export async function startRuntime(root: string, config: RuntimeConfig, logDir: string, runner: Runner): Promise<RuntimeSession> {
   const listed = await mcPilot(root, config, ['client', 'list'], runner) as { clients?: { name: string }[] };
   const missing = config.clients.filter(name => !listed?.clients?.some(client => client.name === name));
@@ -57,6 +60,7 @@ export async function startRuntime(root: string, config: RuntimeConfig, logDir: 
   await stopClients(root, config, runner);
   await mkdir(logDir, { recursive: true });
   await startServer(root, config, path.join(logDir, 'server.log'));
+  await launchClients(root, config, runner);
   return { server: config.server.address, clients: config.clients, world: config.world, logDir, startedAt: new Date().toISOString() };
 }
 
@@ -64,6 +68,16 @@ export async function startRuntime(root: string, config: RuntimeConfig, logDir: 
 export async function stopRuntime(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
   await stopClients(root, config, runner);
   await stopServer(root);
+}
+
+// 設定された全 client を、client ごとのアカウント名と空き WebSocket port で起動し、server に接続して world に参加するまで待つ (§27)
+export async function launchClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
+  for (const name of config.clients) {
+    const account = name.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 16);
+    await mcPilot(root, config, ['client', 'launch', name, '--server', config.server.address, '--ws-port', String(await freePort()), '--account', account, '--force'], runner);
+    const ready = await mcPilot(root, config, ['client', 'wait-ready', name, '--timeout', String(CLIENT_READY_TIMEOUT_SECONDS)], runner) as { inWorld?: boolean } | null;
+    if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`, 'client');
+  }
 }
 
 // 設定された全 client を MC Pilot で停止する。停止済みの client はそのままにする
@@ -143,6 +157,18 @@ export function scenarioEnv(root: string, config: RuntimeConfig, session: Runtim
     HARNESS_SCENARIO_ID: scenario.id,
     HARNESS_AC_IDS: JSON.stringify(scenario.acIds),
   };
+}
+
+// OS が割り当てた空き TCP port を返す。直前に使った port との衝突を避ける
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(error => error ? reject(error) : resolve(port));
+    });
+  });
 }
 
 // MC Pilot client instance 内のパス

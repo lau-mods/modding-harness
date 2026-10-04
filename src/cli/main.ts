@@ -11,10 +11,11 @@ import { collectStatus, formatStatus } from '../commands/status.js';
 import { validateProject } from '../commands/validate.js';
 import { loadConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
-import { startServer, stopServer } from '../e2e/runtime.js';
+import { run } from '../core/process.js';
+import { launchClients, startServer, stopRuntime } from '../e2e/runtime.js';
 import type { Plan } from '../plan/plan.js';
 
-// CLI のサブコマンド (§25)。server は E2E scenario が server を再起動するために使う
+// CLI のサブコマンド (§25)。server は E2E scenario が server と client を再起動するために使う
 export type Command = 'create' | 'init' | 'doctor' | 'validate' | 'status' | 'chat' | 'plan' | 'develop' | 'server';
 
 // 各サブコマンドの usage
@@ -27,7 +28,7 @@ export const usage: Record<Command, string> = {
   chat: 'harness chat <product change request> [--project <directory>]\nChange the product specification and replan.',
   plan: 'harness plan [--project <directory>]\nCreate the milestone plan.',
   develop: 'harness develop [--project <directory>]\nDevelop all milestones automatically.',
-  server: 'harness server start|stop [--project <directory>]\nStart or stop the NeoForge server used by E2E scenarios.',
+  server: 'harness server start|stop [--project <directory>]\nStart or stop the NeoForge server and clients used by E2E scenarios.',
 };
 
 // 引数を parse してサブコマンドへ振り分ける
@@ -87,8 +88,8 @@ export async function main(args: string[]): Promise<void> {
       break;
     case 'server': {
       const config = await loadConfig(root);
-      if (rest[0] === 'start') await startServer(root, config.runtime);
-      else if (rest[0] === 'stop') await stopServer(root);
+      if (rest[0] === 'start') { await startServer(root, config.runtime); await launchClients(root, config.runtime, run); }
+      else if (rest[0] === 'stop') await stopRuntime(root, config.runtime, run);
       else throw new Error(usage.server);
       break;
     }

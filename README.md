@@ -139,7 +139,7 @@ scenario は Codex が実装の一部として作成する、通常の実行可�
 }
 ```
 
-Harness は mod を配置して server を起動し、対象 milestone の Acceptance Criteria に対応する scenario を project root で順に実行し、最後に client と server を停止します。scenario には次の環境変数が渡されます。
+Harness は mod を配置して server を起動し、全 client を空き port で起動して world への参加を待ってから、対象 milestone の Acceptance Criteria に対応する scenario を project root で順に実行し、最後に client と server を停止します。scenario には次の環境変数が渡されます。
 
 | 環境変数 | 内容 |
 |---|---|
@@ -148,12 +148,12 @@ Harness は mod を配置して server を起動し、対象 milestone の Accep
 | `HARNESS_CLIENTS` | client 名の JSON 配列 |
 | `HARNESS_SERVER_ADDRESS` | server のアドレス |
 | `HARNESS_WORLD` | テスト world 名 |
-| `HARNESS_SERVER_CONTROL` | server 制御コマンドの JSON argv。末尾に `stop` / `start` を付けて実行すると server を再起動できる |
+| `HARNESS_SERVER_CONTROL` | server 制御コマンドの JSON argv。末尾に `stop` / `start` を付けて実行すると server と client を再起動できる |
 | `HARNESS_RESULT_FILE` | 結果 JSON の出力先 |
 | `HARNESS_SCREENSHOT_DIR` | screenshot の出力先 |
 | `HARNESS_SCENARIO_ID`, `HARNESS_AC_IDS` | scenario ID と対象 AC ID の JSON 配列 |
 
-scenario は必要な client を `mct client launch <name> --server $HARNESS_SERVER_ADDRESS` と `mct client wait-ready <name>` で起動し、MC Pilot でゲームを操作して実際の状態を観測します。結果は次の形式で `HARNESS_RESULT_FILE` に書きます。
+scenario は接続済みの client を MC Pilot で操作して実際の状態を観測します。結果は次の形式で `HARNESS_RESULT_FILE` に書きます。
 
 ```json
 {
