@@ -1,66 +1,157 @@
-# Modding Harness プロトタイプ ユーザ仕様
+# Modding Harness ユーザ仕様
 
-## 1. 目的
+## 1. 概要
 
-Modding Harness は、NeoForge Mod の製品仕様を起点として、AI による実装、ビルド、コードレビュー、Minecraft 実機 E2E、ローカル Git checkpoint 作成までを自動的に進行する開発ハーネスである。
+Modding Harness は、NeoForge Mod の製品仕様に基づき、AI による実装、ビルド、コードレビュー、GameTest、E2E、Git checkpoint の作成を自動実行するローカル開発ハーネスである。
 
-本ハーネスはプロトタイプとして、正常系および開発中に通常発生する準異常系の処理を対象とする。
+Harness は開発対象を milestone に分割し、各 milestone を順番に実装・確認する。完成した milestone は Git commit として確定する。
 
-主要な開発単位は milestone とする。各 milestone は、製品仕様に定義された Acceptance Criteria を満たす実装を作成し、Minecraft 実機上で期待結果を確認した時点で完了する。
-
-全体フローは次のとおりとする。
+各 milestone の基本工程は次のとおりとする。
 
 ```text
-PROJECT.md
+Codex implementation
     ↓
-実装計画
+Compile / Build
     ↓
-milestone
+Claude Code Review
     ↓
-Codex による実装
+GameTest
     ↓
-compile / build
+E2E
     ↓
-Claude によるコードレビュー
+Git Checkpoint
     ↓
-Minecraft 実機 E2E
-    ↓
-必要な場合は Claude による画面確認
-    ↓
-local Git checkpoint
-    ↓
-次の milestone
+Next Milestone
 ```
 
-すべての milestone が checkpoint になった時点で開発を完了する。
+Code Review で指摘が発生した場合は Codex による修正と再レビューを実行する。
 
----
+GameTest または E2E で失敗した場合は、Codex による修正と再実行を行う。
 
-## 2. 製品仕様
+実行失敗に対して最大3回の修正再試行を行い、それでも成功しない場合は直前の checkpoint に復元し、同じ milestone を最初から実行する。
 
-プロジェクトルートの `PROJECT.md` を製品仕様の正本とする。
+`harness develop` は、すべての milestone が完成するか、fatal error が発生するまで処理を継続する。
 
-`PROJECT.md` には、利用者または Minecraft server/client から観測できる製品挙動を記述する。
+本 Harness は、単一ユーザがローカル環境で使用する開発プロトタイプを対象とする。
 
-実装クラス名、内部アルゴリズム、内部データ構造などは、製品上の制約として必要な場合を除き製品仕様に含めない。
+## 2. 用語
 
-仕様は主として次の階層で構成する。
+| 用語 | 定義 |
+|---|---|
+| Workspace | Harness を導入した NeoForge Mod の Git repository |
+| Feature | 一つのまとまりとして提供する製品機能 |
+| Acceptance Criterion（AC） | 製品機能が満たすべき具体的な観測条件 |
+| Milestone | 一つ以上の完全な Feature を実装・完成させる開発単位 |
+| Plan | Milestone の構成、依存関係、実行順序を定めた計画 |
+| GameTest | Minecraft/NeoForge の GameTest 機構によるゲーム内動作のコードベースの確認 |
+| E2E | Minecraft client の実際の描画結果を screenshot で取得し、Claude が表示品質を確認する工程 |
+| Checkpoint | Milestone の完成を確定するローカル Git commit |
+| Recovery | 直前の checkpoint へ復元し、milestone 全体を再実行する処理 |
+| Fatal Error | Harness が開発処理を継続するための基本条件を維持できない状態 |
+
+## 3. 実行環境
+
+Harness は Linux および macOS のローカル開発環境で使用する。
+
+標準環境は次のとおりとする。
+
+| 項目 | 要件 |
+|---|---|
+| Node.js | 20 以上 |
+| Git | Git repository および submodule |
+| Java | 対象 NeoForge version に適合 |
+| Build | Gradle Wrapper |
+| Implementation Agent | Codex CLI |
+| Review Agent | Claude Code CLI |
+| GameTest | NeoForge GameTest |
+| Minecraft 操作 | MC Pilot |
+| Game Runtime | NeoForge dedicated server および Minecraft client |
+
+Minecraft、NeoForge、Java の version はプロジェクトごとに指定する。
+
+外部 CLI の認証、Java の導入、Minecraft client/server のインストール、MC Pilot の構成は Harness の利用開始前に完了させる。
+
+Harness はプロジェクト内で一つの開発 workflow を実行する。`status` による進捗参照は実行中も認める。
+
+## 4. Workspace 構成
+
+### 4.1 Git submodule
+
+Harness 本体は NeoForge workspace の `.harness` に Git submodule として配置する。
+
+Workspace の Git repository は `.harness` の submodule revision を管理する。
+
+基本構成は次のとおりとする。
 
 ```text
-Feature
-  ├─ Requirement
-  └─ Acceptance Criterion
+my-neoforge-mod/
+├── .git/
+├── .gitmodules
+├── .gitignore
+│
+├── .harness/                  # Harness Git submodule
+│
+├── PROJECT.md
+├── .harness-config.json
+│
+├── .harness-state/
+│   ├── plan.json
+│   ├── progress.json
+│   ├── runs/
+│   └── runtime/
+│
+├── src/
+│   ├── main/
+│   └── test/
+│
+├── tests/
+│   ├── acceptance.json
+│   └── e2e/
+│
+├── build.gradle
+├── settings.gradle
+├── gradlew
+└── gradle/
 ```
 
-Feature は一まとまりの機能を表す。
+`PROJECT.md` は製品仕様を保持する。
 
-Requirement は Feature が満たす製品要求を表す。
+`.harness-config.json` は Harness の実行環境を定義する。
 
-Acceptance Criterion は、その要求を満たしたことを Minecraft 実機上で判定する具体的条件を表す。
+`.harness-state` は開発計画、進捗、一時結果を保持する。
 
----
+`src/test` は GameTest コードの標準配置先とする。実際の配置はプロジェクトの Gradle source set 構成に従う。
 
-## 3. PROJECT.md
+`tests/e2e` は E2E のプロジェクト固有シナリオを保持する。
+
+### 4.2 Harness 本体
+
+`.harness` には、少なくとも次を含める。
+
+- CLI
+- Codex および Claude 用の指示
+- 開発 workflow
+- Code Rules
+- GameTest 結果の取得機能
+- E2E シナリオテンプレート
+- Minecraft runtime の起動・停止機能
+- Git checkpoint と recovery の管理機能
+
+**`harness develop` の実行中に Harness 本体の変更は許可されない。**
+
+この制約は Codex、Claude、利用者が起動した外部 Agent、Harness 自身に適用する。
+
+## 5. 製品仕様
+
+### 5.1 正本
+
+製品仕様の正本をプロジェクトルートの `PROJECT.md` とする。
+
+製品仕様には、プレイヤーまたは Minecraft server から観測される動作、表示、制約を記述する。
+
+Harness は `PROJECT.md` に記載された Feature と AC を基準として、実装計画の作成、実装、GameTest、E2E を実施する。
+
+### 5.2 PROJECT.md
 
 基本形式は次のとおりとする。
 
@@ -71,7 +162,6 @@ Status: draft
 
 Project ID:
 Mod ID:
-Package Path:
 
 ## Platform
 
@@ -87,863 +177,1061 @@ Java:
 
 #### Description
 
-#### Requirements
-
-##### R-F001-001: Requirement name
-
-...
-
 #### Acceptance Criteria
 
 ##### AC-F001-001: Criterion name
 
 Preconditions:
-...
 
 Action:
-...
 
 Expected Result:
-...
 
-## Cross-cutting Requirements
-
-### Persistence
-
-### Multiplayer
-
-### Visual
-
-### Performance
-
-### Compatibility
+## Global Requirements
 
 ## Constraints
 
 ## Open Questions
 ```
 
-Acceptance Criterion は少なくとも次を含む。
+`Status` は `draft` または `active` とする。
 
-- `Preconditions`
-- `Action`
-- `Expected Result`
+`draft` は仕様作成中、`active` は開発対象の仕様が確定した状態を表す。
 
-Expected Result は、実機 E2E で観測できる具体的な結果として記述する。
+`active` にするためには、次の条件を満たす必要がある。
 
-例を示す。
+- Project ID と Mod ID が確定している
+- Minecraft、NeoForge、Java の version が確定している
+- 少なくとも一つの Feature が存在する
+- すべての Feature に AC が存在する
+- Open Questions が解消されている
+
+未決定事項が存在しない場合、Open Questions には `None.` を記述する。
+
+### 5.3 Feature
+
+Feature は利用者から見た一つの機能を表す。
+
+Feature ID は `F-001`、`F-002` の形式とする。
+
+一つの機能に含まれるゲーム処理、GUI、モデル、テクスチャなどの AC は、同じ Feature に所属させる。
+
+### 5.4 Acceptance Criterion
+
+AC は `AC-F001-001` の形式の ID を持つ。
+
+各 AC には以下を記述する。
+
+- `Preconditions`：確認開始前のゲーム状態
+- `Action`：実行するゲーム内操作
+- `Expected Result`：操作後に成立する具体的な結果
+
+例を次に示す。
 
 ```markdown
+### F-001: Copper Press
+
+#### Description
+
+銅インゴットを銅板に加工する機械を追加する。
+
+#### Acceptance Criteria
+
 ##### AC-F001-001: 銅板の加工
 
 Preconditions:
-加工機が設置され、入力スロットに銅インゴットが1個存在する。
+加工機に銅インゴットが1個投入されている。
+出力スロットは空である。
 
 Action:
-プレイヤーが加工操作を実行する。
+加工処理を開始し、完了まで待機する。
 
 Expected Result:
-入力された銅インゴットが消費され、出力スロットに銅板が1個生成される。
+銅インゴットが1個消費され、
+出力スロットに銅板が1個生成される。
+
+##### AC-F001-002: 加工機の表示
+
+Preconditions:
+加工機がworld内に設置されている。
+
+Action:
+Minecraft clientから加工機を表示する。
+
+Expected Result:
+加工機のモデルとテクスチャが正常に描画される。
+missing texture、モデル崩れ、z-fightingが発生しない。
 ```
 
----
+ゲーム状態や処理結果に関する AC は GameTest で確認する。
 
-## 4. プロジェクト状態
+描画結果に関する AC は E2E で確認する。
 
-`PROJECT.md` の状態には `draft` と `active` を使用する。
+同じ AC に両方の確認内容が含まれる場合は、GameTest と E2E の両方でその AC を確認する。
 
-`draft` は製品仕様を編集中であることを表す。
+### 5.5 Global Requirements
 
-`active` は実装計画を作成できる状態を表す。
+複数の Feature に共通する製品要求は `Global Requirements` に記述する。
 
-`active` にするためには、少なくとも次を確定する。
+world 保存、再読み込み、状態同期、共通 GUI 規則、描画規則などを対象とする。
 
-- Project ID
-- Mod ID
-- Minecraft version
-- NeoForge version
-- Java version
-- 1件以上の active Acceptance Criterion
-- Open Questions の解消
+各 Feature に適用される Global Requirements は、その Feature の完成条件にも含める。
 
-未決定事項が存在しない場合は次のように記述する。
+## 6. Milestone Plan
 
-```markdown
-## Open Questions
+### 6.1 分割単位
 
-None.
-```
+Milestone は一つ以上の完全な Feature を含む。
 
----
+一つの Feature に所属するすべての AC は同じ milestone で完成させる。
 
-## 5. ID
+一つの Feature を複数 milestone に分割することは禁止する。
 
-Feature、Requirement、Acceptance Criterion には安定した ID を付与する。
+複数 Feature をまとめて実装することは認める。
 
-形式は次のとおりとする。
+Milestone の分割では、機能間の依存関係と実装順序を考慮する。
 
-```text
-F-001
-R-F001-001
-AC-F001-001
-```
+### 6.2 Plan 生成
 
-ID は計画、実装、E2E、checkpoint を関連付ける識別子として使用する。
+`harness plan` は `PROJECT.md` のすべての Feature を milestone に割り当てる。
 
-仕様項目を廃止する場合は `Status: retired` を使用できる。
+各 milestone には次を設定する。
 
----
+- Milestone ID
+- 対象 Feature ID
+- 依存 milestone
+- 実装方針
+- 想定変更領域
 
-## 6. 実装計画
+Plan は `.harness-state/plan.json` に保存する。
 
-`harness plan` は active な Acceptance Criteria を milestone に割り当てる。
-
-milestone は次の情報を持つ。
-
-```text
-milestone ID
-対象 Acceptance Criteria
-依存 milestone
-実装対象の概要
-想定する変更範囲
-E2E の概要
-```
-
-milestone ID は次の形式を使用する。
-
-```text
-M01
-M02
-M03
-```
-
-すべての active Acceptance Criteria は、いずれかの milestone に割り当てる。ただし、何かが起きないことを期待結果とする AC のうちその抑止をこの Mod が実装しないものと、Minecraft・NeoForge・上流の Mod が担う挙動の AC は、計画時に理由とともに除外する。
-
-milestone は Feature 単位以上の大きさとし、実装を共有する Feature は同一 milestone にまとめる。
-
-milestone の実装開始後は、その開発実行が完了するまで計画を固定する。
-
----
-
-## 7. 開発処理
-
-`harness develop` は計画された milestone を順番に処理する。
-
-各 milestone は次の順序で進行する。
-
-```text
-1. Codex による実装
-2. compile / build
-3. Claude によるコードレビュー
-4. Minecraft 実機 E2E
-5. 必要な場合は Claude による画面確認
-6. Git checkpoint
-```
-
-milestone が checkpoint になった後、次の milestone を開始する。
-
-全 milestone の checkpoint 作成後、プロジェクト状態を `complete` とする。
-
----
-
-## 8. Codex による実装
-
-Codex は milestone に割り当てられた Acceptance Criteria と現在のソースコードを基に実装を行う。
-
-入力情報には少なくとも次を含める。
-
-- 対象 milestone
-- 対象 Acceptance Criteria
-- PROJECT.md
-- 現在の関連ソース
-- 直前のレビュー指摘
-- 直前の E2E 結果
-
-Codex は必要な source、resource、build configuration、E2E scenario を編集する。
-
-実装中の製品仕様変更は行わない。
-
-ハーネス実行中にハーネス本体の変更は許可されない。
-
----
-
-## 9. compile と build
-
-Codex による変更後、対象 NeoForge プロジェクトの compile および build を実行する。
-
-代表的な処理は次のとおりとする。
-
-```text
-compile
-↓
-build
-```
-
-両方が成功した場合にコードレビューへ進む。
-
-compile または build が失敗した場合は、失敗内容を Codex に渡して修正させる。
-
----
-
-## 10. Claude コードレビュー
-
-build 成功後、Claude が milestone の変更内容をレビューする。
-
-レビュー対象には少なくとも次を含める。
-
-- 対象 Acceptance Criteria
-- milestone の目的
-- Git diff
-- 変更された source
-- 変更された resource
-- E2E scenario
-- NeoForge API の使用方法
-- client/server の処理関係
-- registration
-- networking
-- serialization
-- state synchronization
-
-### 初回レビュー
-
-各 milestone の最初のコードレビューでは、Claude がその時点で認識できる指摘事項を一括して列挙する。
-
-各指摘には固定 ID を付与する。
-
-例:
-
-```text
-CR-001
-CR-002
-CR-003
-```
-
-初回レビュー終了時点で、その milestone のコードレビュー指摘集合を固定する。
-
-### 再レビュー
-
-2回目以降の Claude レビューは、初回に登録された指摘事項だけを確認する。
-
-各指摘に対して、少なくとも次のいずれかを返す。
-
-```text
-resolved
-unresolved
-```
-
-再レビュー時に新しい指摘事項を追加しない。
-
----
-
-## 11. コードレビュー修正ループ
-
-初回レビューで指摘が存在した場合、Codex に全指摘を渡して修正を行う。
-
-処理は次のループとなる。
-
-```text
-Claude 初回レビュー
-    ↓
-初回指摘集合を固定
-    ↓
-Codex 修正
-    ↓
-compile / build
-    ↓
-Claude 再レビュー
-    ↓
-未解決指摘が存在
-    └─→ Codex 修正
-```
-
-各指摘は次のいずれかになった時点で解決済みとして扱う。
-
-1. Claude が `resolved` と判定した場合
-2. 修正担当 Codex が、変更を加えないことを妥当と判断し、その理由を明示して `accepted` とした場合
-
-Codex が `accepted` とする場合は、その判断理由を記録する。
-
-すべての初回指摘が `resolved` または `accepted` になるまで修正ループを継続する。
-
-レビュー上の指摘が残っていること自体を理由として開発処理を停止しない。
-
----
-
-## 12. Minecraft 実機 E2E
-
-コードレビュー完了後、Minecraft の実 server/client を起動して milestone の Acceptance Criteria を確認する。
-
-E2E はプロジェクト固有の scenario として定義する。
-
-例:
-
-```text
-tests/e2e/
-  scenarios/
-    press.mjs
-    persistence.mjs
-    multiplayer.mjs
-```
-
-scenario は通常の実行可能プログラムとして作成する。
-
-E2E scenario は Minecraft を操作し、Acceptance Criterion の Preconditions、Action、Expected Result に対応する観測を行う。
-
----
-
-## 13. E2E scenario
-
-scenario manifest の例を示す。
+例を次に示す。
 
 ```json
 {
-  "scenarios": [
+  "milestones": [
     {
-      "id": "press",
-      "acIds": [
-        "AC-F001-001"
-      ],
-      "command": [
-        "node",
-        "tests/e2e/scenarios/press.mjs"
-      ]
-    }
-  ]
-}
-```
-
-scenario result は machine-readable JSON とする。
-
-例:
-
-```json
-{
-  "scenarioId": "press",
-  "passed": true,
-  "assertions": [
-    {
-      "name": "input_consumed",
-      "expected": 0,
-      "actual": 0,
-      "passed": true
+      "id": "M01",
+      "features": ["F-001"],
+      "dependsOn": [],
+      "approach": "銅加工機能を実装する"
     },
     {
-      "name": "output_created",
-      "expected": 1,
-      "actual": 1,
-      "passed": true
+      "id": "M02",
+      "features": ["F-002", "F-003"],
+      "dependsOn": ["M01"],
+      "approach": "追加加工機能を実装する"
     }
-  ],
-  "screenshots": [
-    "output.png"
   ]
 }
 ```
 
-scenario の成否は assertion の観測結果によって判定する。
+すべての Feature は、いずれか一つの milestone に所属する。
 
-一度成功した scenario は、同じ milestone 内で再実行も変更もしない。screenshot を取得する scenario は画面確認のために再実行する。
+各 milestone に所属する AC は `PROJECT.md` から求める。
 
----
+### 6.3 Plan の固定
 
-## 14. 実機テストの範囲
+`develop` 開始時に plan を固定する。
 
-ゲーム内で必要となる確認はすべて E2E scenario 内で扱う。
+`develop` 実行中の milestone 構成、対象 Feature、依存関係、実行順序の変更は禁止する。
 
-たとえば次の処理を一つの E2E 基盤で実行する。
+Recovery 後も同じ plan を使用する。
 
-- ブロック配置
-- GUI 操作
-- アイテム投入
-- 加工処理
-- inventory 確認
-- block state 確認
-- entity state 確認
-- server state 確認
-- client state 確認
-- server 再起動
-- client 再起動
-- world 再読込
-- 複数 client 間の同期確認
-- screenshot 取得
+## 7. Harness 状態管理
 
-永続化や multiplayer は Acceptance Criterion の内容に応じて scenario 内で必要な操作を行う。
+### 7.1 Git 管理ファイル
 
-scenario は前提の構築と結果の観測を決定的なコマンドで行う。
+Harness が開発状態を保持する専用ファイルは、次の二つを基本とする。
 
----
-
-## 15. 画面確認
-
-Acceptance Criterion の期待結果に視覚的な内容が含まれる場合、E2E scenario は screenshot を取得する。
-
-対象例は次のとおりとする。
-
-- block model
-- item model
-- texture
-- GUI layout
-- text
-- animation
-- transparency
-- clipping
-- 表示状態
-
-取得された screenshot は Claude が確認する。
-
-### 初回画面確認
-
-最初の画面確認では、Claude が認識できる視覚上の問題を一括して列挙する。
-
-各指摘には固定 ID を付与する。
-
-例:
-
-```text
-VR-001
-VR-002
-```
-
-この時点で画面確認の指摘集合を固定する。
-
-### 再確認
-
-2回目以降は、初回指摘の解消状態だけを確認する。
-
-新しい視覚指摘を追加しない。
-
-各指摘は Claude による `resolved`、または修正担当 Codex による理由付き `accepted` によって解決済みとなる。
-
----
-
-## 16. 画面修正ループ
-
-画面確認で指摘が発生した場合は Codex に差し戻す。
-
-その後は次の工程を再実行する。
-
-```text
-Codex 修正
-↓
-compile / build
-↓
-コードレビュー
-↓
-Minecraft E2E
-↓
-画面再確認
-```
-
-コードレビューでは、その milestone の初回コードレビュー指摘だけを確認する。
-
-画面確認では、その milestone の初回画面確認指摘だけを確認する。
-
-すべての指摘が解決するまでループを継続する。
-
----
-
-## 17. 実行失敗と再試行
-
-外部プロセスまたは実行環境上の失敗が発生した場合、まず同一状態のまま同じ処理を再実行する。
-
-対象には次を含む。
-
-- Codex 呼び出し失敗
-- Claude 呼び出し失敗
-- Minecraft server 起動失敗
-- Minecraft client 起動失敗
-- Minecraft crash
-- MC Pilot 接続失敗
-- E2E scenario process failure
-- screenshot 取得失敗
-- 一時的なファイルアクセス失敗
-
-同一処理は最大3回実行する。
-
-```text
-1回目
-↓ failure
-2回目
-↓ failure
-3回目
-↓ failure
-milestone rollback
-```
-
-再試行中は source、resource、config、scenario に修正を加えない。
-
-3回以内に成功した場合、そのまま次工程へ進む。
-
----
-
-## 18. milestone rollback
-
-同じ処理が3回連続して実行失敗した場合、進行中 milestone の作業内容を破棄する。
-
-プロジェクトを直前の checkpoint の状態へ復元する。
-
-同時に、その milestone で生成した次の情報を新しい実行用に初期化する。
-
-- 実装変更
-- 一時的な E2E 結果
-- review session
-- review issue set
-- screenshot
-- milestone runtime state
-
-その後、同じ milestone を最初から再実行する。
-
-```text
-checkpoint
-↓
-Codex による新しい実装
-↓
-compile / build
-↓
-Claude review
-↓
-E2E
-```
-
-milestone rollback の後も同一の PROJECT.md と実装計画を使用する。
-
-rollback 自体を理由として Harness 全体を停止しない。
-
----
-
-## 19. E2E assertion failure
-
-Minecraft が正常に起動し、scenario も正常に実行された上で assertion が期待値と一致しなかった場合、その結果は製品挙動の不一致として扱う。
-
-この場合は Codex に次の情報を渡す。
-
-- 対象 Acceptance Criterion
-- Expected Result
-- 実測結果
-- 関連ログ
-- screenshot
-- scenario 結果
-
-Codex が修正した後、次の工程から再開する。
-
-```text
-compile / build
-↓
-コードレビュー
-↓
-Minecraft E2E
-```
-
-assertion failure はプロセス実行失敗の3回再試行対象とは区別する。
-
----
-
-## 20. fatal
-
-Harness が自動的に処理を継続するための前提そのものが失われた状態を `fatal` とする。
-
-代表例は次のとおりとする。
-
-- `PROJECT.md` を読み取れない
-- active specification が構造的に成立していない
-- 実装計画を読み取れない
-- 直前 checkpoint を復元できない
-- Harness 本体が実行中に変更された
-- `PROJECT.md` が開発実行中に変更された
-- 必須 executable が存在しない
-- Codex または Claude の認証が利用できない
-- Minecraft 実機環境の必須設定が存在しない
-- Harness 自身の内部状態を読み取れない
-- Harness 内部処理で継続不能な例外が発生した
-
-fatal が発生した場合は処理を停止し、原因を利用者に表示する。
-
-通常の build failure、review 指摘、E2E assertion failure、Minecraft crash は自動処理の対象として扱う。
-
----
-
-## 21. checkpoint
-
-milestone が次の条件を満たした時点で Harness がローカル Git checkpoint を作成する。
-
-```text
-compile 成功
-build 成功
-コードレビューの全初回指摘が解決済み
-対象 Acceptance Criteria の E2E 成功
-画面確認を実施した場合は全初回画面指摘が解決済み
-```
-
-checkpoint commit には milestone と Acceptance Criteria の対応を記録する。
-
-例:
-
-```text
-Harness-Milestone: M02
-Harness-AC: AC-F002-001, AC-F002-002
-```
-
-checkpoint 作成後、その commit を次の milestone の復元地点として使用する。
-
----
-
-## 22. complete
-
-次の条件をすべて満たした場合、開発を完了する。
-
-- すべての planned milestone が checkpoint になっている
-- 計画時に除外したものを除くすべての active Acceptance Criteria がいずれかの完成 milestone に含まれている
-- 最終 milestone の E2E が成功している
-- 最終 checkpoint が作成されている
-
-完了時の状態を `complete` とする。
-
-Harness の自動開発処理は、`fatal` または `complete` に到達するまで継続する。
-
----
-
-## 23. 仕様変更
-
-製品仕様を変更する場合は `harness chat` を使用する。
-
-```sh
-harness chat "加工時間を40tickから20tickに変更する"
-```
-
-Harness は要求内容を基に `PROJECT.md` を更新し、構造を確認した上で新しい実装計画を作成する。
-
-仕様変更は milestone 実行の外側で行う。
-
-仕様変更後の開発は新しい計画に基づいて開始する。
-
----
-
-## 24. 状態表示
-
-`harness status` は少なくとも次を表示する。
-
-```text
-Project status
-Current Git checkpoint
-Current milestone
-Current phase
-Completed milestones
-Remaining milestones
-Current review issues
-Current E2E scenario
-Retry count
-Rollback count
-```
-
-phase の例は次のとおりとする。
-
-```text
-idle
-preflight
-planning
-implementation
-build
-code_review
-e2e
-visual_review
-checkpoint
-rollback
-fatal
-complete
-```
-
----
-
-## 25. CLI
-
-Harness は対象プロジェクトの `.harness` に Git submodule として配置する。
-
-主要 CLI は次のとおりとする。
-
-| コマンド | 用途 |
+| ファイル | 内容 |
 |---|---|
-| `harness create` | NeoForge プロジェクトを作成し、Harness を `.harness` submodule として追加する |
-| `harness init` | `.harness` submodule を持つプロジェクトを Harness 管理対象として初期化する |
-| `harness doctor` | 必要な開発環境を確認する |
-| `harness preflight` | Minecraft 実機環境の起動・world 参加・停止を確認する |
-| `harness validate` | PROJECT.md と Harness 設定を確認する |
-| `harness status` | 現在の実行状態を表示する |
-| `harness chat` | 製品仕様を変更する |
-| `harness plan` | milestone 計画を作成する |
-| `harness develop` | 全 milestone の自動開発を実行する |
+| `.harness-state/plan.json` | 確定した milestone plan |
+| `.harness-state/progress.json` | 開発進捗、現在工程、再試行回数、Claude 指摘事項 |
 
----
+両ファイルを Workspace の Git 管理対象とする。
 
-## 26. Harness 設定
+`progress.json` は開発工程の進行に合わせて更新する。
 
-`.harness-config.json` には、プロジェクト固有の実行設定を記述する。
+Milestone の checkpoint 作成時には最新の進捗を commit に含める。
 
-概念例を示す。
+### 7.2 一時データ
+
+以下のディレクトリを Git 管理対象外とする。
+
+| ディレクトリ | 内容 |
+|---|---|
+| `.harness-state/runs/` | Gradle log、GameTest report、screenshot、Claude/Codex 結果 |
+| `.harness-state/runtime/` | Minecraft runtime、検証用 world、Mod 配置先、一時データ |
+
+各実行結果は run ごとに区別して保存する。
+
+一時データは実行中の判定、修正、障害解析に使用する。
+
+### 7.3 進捗情報
+
+`progress.json` は少なくとも次を管理する。
+
+- 現在の milestone
+- 現在の工程
+- 完成した milestone
+- 各工程の連続失敗回数
+- 当該 milestone の recovery 回数
+- Code Review の初回指摘一覧と状態
+- E2E の初回指摘一覧と状態
+- 直前 checkpoint
+- 全体の実行状態
+
+## 8. Harness 設定
+
+`.harness-config.json` に外部コマンドと runtime の設定を保持する。
+
+設定例を次に示す。
 
 ```json
 {
-  "project": {
-    "buildFile": "build.gradle"
-  },
   "gradle": {
     "compile": "classes",
-    "build": "build"
+    "build": "build",
+    "gameTest": "runGameTestServer"
   },
   "agents": {
     "implementation": {
-      "command": "codex"
+      "command": "codex",
+      "model": null
     },
     "review": {
-      "command": "claude"
+      "command": "claude",
+      "model": null
     }
   },
   "runtime": {
     "command": "mct",
-    "clients": [
-      "client-a",
-      "client-b"
-    ],
-    "server": "server"
+    "server": null,
+    "clients": [],
+    "deploy": [],
+    "logs": []
   }
 }
 ```
 
-設定は compile/build、Codex、Claude、Minecraft server/client、MC Pilot を接続するために使用する。
+`model` が `null` の場合、各 CLI の標準モデルを使用する。
 
----
+`gradle` は各工程の実行 task を指定する。
 
-## 27. 実機環境
+`runtime` は Minecraft client、server、Mod 配置先、log の取得先などを定義する。
 
-Minecraft E2E を使用するプロジェクトでは、次の環境を事前に構築する。
+## 9. CLI
 
-- 対象 Minecraft version の NeoForge server
-- 対象 Minecraft version の NeoForge client
-- MC Pilot
-- Harness から起動できる client configuration
-- Mod 配置先
-- world 保存先
-- server/client log の取得先
+Harness は以下のコマンドを提供する。
 
-Harness は設定された client を起動し、world への参加を確認してから scenario を実行する。複数 client を必要とする Acceptance Criterion では、scenario がそれらの client を操作する。
+| コマンド | 機能 |
+|---|---|
+| `harness create` | 新規 NeoForge workspace 作成 |
+| `harness init` | 既存 workspace の初期化 |
+| `harness doctor` | 開発環境の診断 |
+| `harness validate` | 仕様、設定、計画の確認 |
+| `harness status` | 開発状態の表示 |
+| `harness chat` | 製品仕様の編集 |
+| `harness plan` | Milestone plan の生成 |
+| `harness develop` | 自動開発の実行 |
 
-world 再読込を必要とする Acceptance Criterion では、scenario が server/client を再起動して同じ world を開く。
+CLI の実体は `.harness/dist/cli/main.js` とし、Workspace 内では `node .harness/dist/cli/main.js` から実行する。
 
-これらはすべて通常の E2E 操作として扱う。
+以降の `harness` はこの CLI を表す。
 
----
+### 9.1 create
 
-## 28. E2E world
+新規 workspace は NeoForge template repository から作成する。
 
-Harness 用の固定テスト world を使用する。
-
-例:
-
-```text
-harness-world
+```sh
+harness create ./my-mod \
+  --template-repo <repository>
 ```
 
-同一プロジェクトの milestone 間で同じ world を使用できる。
+特定 revision を利用する場合は `--template-ref` を指定する。
 
-scenario は必要に応じて world 内の初期状態を構築する。
+作成する workspace は独立した Git repository とし、Harness を `.harness` submodule として追加する。
 
-milestone rollback 後は scenario が必要な初期状態を再構築する。
+初期 `PROJECT.md`、`.harness-config.json`、`.harness-state` を準備する。
 
----
+### 9.2 init
 
-## 29. ログ
+既存 workspace では Harness submodule を追加してから初期化する。
 
-compile、build、Codex、Claude、server、client、E2E scenario の標準出力と標準エラーを実行記録として保存する。
+```sh
+git submodule add <harness-repository> .harness
 
-利用者は `harness status` または実行ディレクトリから次を確認できる。
+npm --prefix .harness ci
+npm --prefix .harness run build
 
-```text
-何を実行したか
-何回目の実行か
-成功したか
-失敗理由
-Claude の初回指摘
-各指摘の現在状態
-E2E assertion
-screenshot
-rollback 履歴
+node .harness/dist/cli/main.js init
 ```
 
-プロトタイプでは、実行継続および問題解析に必要な範囲の記録を保持する。
+`init` は必要な設定、仕様、状態管理ファイルを準備する。
 
----
+### 9.3 doctor
 
-## 30. 自動開発の状態遷移
+`doctor` は Node.js、Git、Java、Gradle Wrapper、Codex、Claude、MC Pilot、Minecraft runtime の構成を診断する。
 
-通常の milestone は次の状態遷移を行う。
+各項目の利用状態と、問題がある場合の理由を表示する。
+
+### 9.4 validate
+
+`validate` は以下を確認する。
+
+- `PROJECT.md` の構造
+- Feature ID と AC ID の一意性
+- active 状態の成立条件
+- Harness 設定
+- Milestone plan の Feature 網羅性
+- Milestone の依存関係
+- Milestone の Feature 単位の分割
+- GameTest と AC の対応
+- E2E と AC の対応
+- Progress と checkpoint の整合性
+
+### 9.5 status
+
+`status` は現在の milestone、工程、進捗、失敗回数、レビュー指摘、checkpoint を表示する。
+
+### 9.6 chat
+
+`chat` は自然言語の製品要求を `PROJECT.md` に反映する。
+
+```sh
+harness chat "加工機の処理時間を5秒に変更する"
+```
+
+変更後の仕様を検証し、仕様変更 commit を作成する。
+
+その後、新しい plan と progress を生成して計画を確定する。
+
+仕様変更は `develop` の開始前または正常完了後に行う。
+
+## 10. 自動開発
+
+### 10.1 開始条件
+
+`harness develop` は次の条件が成立している workspace から開始する。
+
+- `PROJECT.md` が active
+- Plan が確定している
+- Git working tree が clean
+- Harness submodule が利用可能
+- Codex と Claude が利用可能
+- Gradle と GameTest の実行環境が構成済み
+- E2E の実行環境が構成済み
+
+初回 milestone の復元基点には、確定した plan を含む commit を使用する。
+
+### 10.2 実行順序
+
+Harness は plan に定義された依存関係を満たす順序で milestone を実行する。
+
+各 milestone では次の工程を順番に進める。
+
+1. Codex implementation
+2. Compile / Build
+3. Claude Code Review
+4. GameTest
+5. E2E
+6. Git Checkpoint
+
+E2E は描画に関する AC を含む milestone で実行する。
+
+各工程に修正が発生した場合は、変更後のコードに対して compile/build から関連工程を再実行する。
+
+## 11. Codex Implementation
+
+Codex は現在の milestone に所属するすべての Feature と AC を実装する。
+
+入力には少なくとも次を含める。
+
+- `PROJECT.md`
+- Milestone の定義
+- 対象 Feature と AC
+- 関連ソース
+- Code Rules
+- GameTest の作成指示
+- E2E の作成指示
+- 修正時の失敗情報または Claude 指摘
+
+Codex は対象 milestone の完成に必要な Java ソース、resource、GameTest、E2E シナリオを実装する。
+
+`PROJECT.md`、plan、Harness 本体は実装中の固定対象とする。
+
+## 12. Code Rules
+
+### 12.1 強制規則
+
+すべての Codex 実装・修正作業には、次の Code Rules を適用する。
 
 ```text
-implementation
+Code style:
+- Implement exactly what the target Acceptance Criteria require; other behavior belongs to its own milestone.
+- Use vanilla Minecraft and NeoForge mechanisms (registries, JSON resources, existing base classes) before custom code.
+- Keep one direct path per behavior: small classes, direct calls, inline values until a second use appears.
+- Introduce an abstraction, helper or config option only when two call sites use it now.
+- Validate only states the game can produce; rely on Minecraft and NeoForge guarantees.
+- Remove code, resources and comments that the current behavior no longer uses.
+- Names say what the code does; comments say why, describing the current behavior only.
+```
+
+### 12.2 適用対象
+
+Code Rules を Java ソース、resource、GameTest、E2E、Gradle 設定の変更に適用する。
+
+Harness は次の方法で Code Rules を強制する。
+
+- Codex のすべての実装・修正要求に Code Rules 全文を含める。
+- Claude の初回 Code Review で Code Rules への適合を評価する。
+- 違反を Code Review の指摘事項として記録する。
+- Codex が修正を行うたびに Code Rules への適合を要求する。
+- Code Rules と明確に矛盾する実装を許容判断の対象から除外する。
+
+## 13. Compile / Build
+
+Codex の実装後に Gradle compile task と build task を実行する。
+
+```text
+Implementation
     ↓
-build
-    ├─ build failure → implementation
-    │
-    ↓ success
-code_review
-    ├─ 指摘あり → implementation
-    │               ↓
-    │             build
-    │               ↓
-    │             code_review
-    │
-    ↓ 全指摘解決
-e2e
-    ├─ assertion failure → implementation
-    │
-    ├─ visual issue → implementation
-    │
-    ↓ success
-checkpoint
+Compile
+    ↓
+Build
 ```
 
-外部実行失敗時は次の処理を行う。
+両 task が成功した時点で Code Review に進む。
+
+Compile または Build が失敗した場合は、log とエラー情報を Codex に渡して修正する。
+
+修正後に Compile / Build を再実行する。
+
+ソース変更を伴うすべての修正で同じ処理を行う。
+
+## 14. Claude Code Review
+
+### 14.1 初回レビュー
+
+Build が成功した実装を Claude に渡す。
+
+Claude は次を確認する。
+
+- 対象 AC への適合
+- Code Rules への適合
+- Minecraft/NeoForge 標準機構の適切な利用
+- lifecycle と登録処理
+- client/server の処理分離
+- 保存・同期処理
+- GameTest の実装内容
+- 未使用コード、resource、不要な抽象化
+
+初回レビューでは、発見したすべての指摘事項を列挙する。
+
+指摘には `CR-001`、`CR-002` の形式で ID を割り当てる。
+
+各指摘には対象箇所、問題内容、理由、修正内容を含める。
+
+初回レビュー完了時点で issue set を固定する。
+
+### 14.2 修正レビュー
+
+初回レビューで指摘が発生した場合は Codex に差し戻す。
 
 ```text
-operation
-  ↓ failure
-retry 1
-  ↓ failure
-retry 2
-  ↓ failure
-rollback
-  ↓
-milestone restart
+Initial Code Review
+    ↓
+Issue Set 確定
+    ↓
+Codex Repair
+    ↓
+Compile / Build
+    ↓
+Claude Follow-up Review
 ```
 
----
+2回目以降の Claude review は、初回 issue set に含まれる指摘の解消状態だけを判定する。
 
-## 31. 自動処理の終了条件
+**2回目以降のレビューで新しい指摘を追加することは禁止する。**
 
-Harness の開発処理には二つの終了状態を定義する。
+各 issue は次の状態を持つ。
 
-### complete
+| 状態 | 意味 |
+|---|---|
+| `open` | 修正または判断が必要 |
+| `resolved` | Claude が修正完了を確認 |
+| `accepted` | Codex が根拠付きで現在の実装を許容 |
 
-全 milestone が完成し、最後の checkpoint が作成された状態。
+`accepted` を使用する場合、Codex は対象 AC、Code Rules、Minecraft/NeoForge の仕様に基づく理由を記録する。
 
-### fatal
+すべての issue が `resolved` または `accepted` になるまで修正とレビューを繰り返す。
 
-Harness が自律的に次の処理を決定または実行できない状態。
+レビュー指摘の解消を目的とするループには回数上限を設けない。
 
-レビュー指摘、コード上の不具合、E2E 不一致、一時的な build failure、Minecraft crash は終了条件として扱わず、自動修正、再試行、rollback のいずれかによって処理を継続する。
+## 15. GameTest
 
----
+### 15.1 目的
 
-## 32. 設計原則
+GameTest は、ゲーム内の状態と処理結果をコード上の assertion によって確認する。
 
-本プロトタイプは次の原則に従う。
+対象には次を含める。
 
-1. `PROJECT.md` に製品として期待する挙動を記述する。
-2. Acceptance Criterion の最終確認は Minecraft 実機 E2E で行う。
-3. 実装工程は Codex が担当する。
-4. 実装計画、仕様変更、コードおよび画面の第三者確認は Claude が担当する。
-5. Claude の初回レビューで指摘集合を確定する。
-6. 再レビューでは初回指摘の解消だけを判定する。
-7. 指摘が解消するまで実装とレビューを自動的に繰り返す。
-8. 実行系の失敗は同一状態で最大3回試行する。
-9. 3回連続して実行できない場合は直前 checkpoint に復元して milestone を最初から作り直す。
-10. milestone の成功状態だけを checkpoint として確定する。
-11. Harness は `complete` または `fatal` に到達するまで自動処理を継続する。
+- block の設置と状態変化
+- item の生成、消費、移動
+- recipe と加工処理
+- inventory
+- block entity
+- entity の動作
+- 保存と読み込み
+- server 上の状態同期
+- GUI 操作によって変化するゲーム状態
+- その他のゲームロジック
+
+各 GameTest は Minecraft/NeoForge の GameTest 機構を使用して実装する。
+
+### 15.2 AC との対応
+
+GameTest と AC の対応を `tests/acceptance.json` に記録する。
+
+例を次に示す。
+
+```json
+{
+  "gameTests": [
+    {
+      "acId": "AC-F001-001",
+      "report": "build/test-results/gametest/TEST-example.PressGameTests.xml",
+      "classname": "example.PressGameTests",
+      "name": "copperProducesPlate"
+    }
+  ],
+  "e2e": [
+    {
+      "acId": "AC-F001-002",
+      "scenario": "tests/e2e/copper-press.mjs"
+    }
+  ]
+}
+```
+
+一つの AC に複数の GameTest testcase を対応付けることを認める。
+
+GameTest は対象 AC の Preconditions に相当する状態を準備し、Action を実行して、Expected Result を assertion する。
+
+### 15.3 実行
+
+Code Review 完了後、Gradle の GameTest task を実行する。
+
+Harness は実行によって生成された JUnit XML report を読み取り、AC に対応する testcase の結果を照合する。
+
+Testcase の成功条件は次のとおりとする。
+
+- 指定 testcase が report に存在する
+- testcase が実行済み
+- failure が0件
+- error が0件
+- skipped が0件
+
+Milestone の対象となるすべての GameTest が成功した時点で GameTest 工程を完了する。
+
+### 15.4 失敗時の動作
+
+GameTest が失敗した場合は、対象 AC、assertion、実際の観測値、log を Codex に渡す。
+
+Codex は実装または GameTest を修正する。
+
+修正後は Compile / Build、固定済み Code Review 指摘の確認、GameTest を再実行する。
+
+GameTest の失敗は修正再試行の対象とする。
+
+## 16. E2E
+
+### 16.1 対象
+
+E2E は Minecraft client 上の描画結果を確認するために使用する。
+
+主な確認対象は次のとおりとする。
+
+- missing texture
+- block model の崩れ
+- item model の崩れ
+- entity model の崩れ
+- UV の異常
+- z-fighting
+- clipping
+- transparency の異常
+- GUI の表示崩れ
+- text overflow
+- resource の組み合わせによる表示不整合
+
+E2E は screenshot を取得し、その画像を Claude が判定する。
+
+### 16.2 シナリオテンプレート
+
+E2E の共通シナリオテンプレートを Harness 本体に含める。
+
+Harness はシナリオの実行環境と lifecycle を管理する。
+
+共通処理は次のとおりとする。
+
+```text
+Build Artifact 準備
+    ↓
+Mod Deploy
+    ↓
+Server Start
+    ↓
+Client Start
+    ↓
+World Load
+    ↓
+Scenario Setup
+    ↓
+Camera Setup
+    ↓
+Screenshot
+    ↓
+Result Save
+    ↓
+Client Stop
+    ↓
+Server Stop
+```
+
+Harness は以下の機能を提供する。
+
+- Mod artifact の配置
+- Minecraft server の起動と停止
+- Minecraft client の起動と停止
+- World の準備と読み込み
+- MC Pilot によるゲーム操作
+- シナリオ固有の操作の呼び出し
+- Camera の位置と向きの設定
+- Screenshot の取得
+- Screenshot と AC の対応付け
+- Log と実行結果の保存
+- 実行後の終了処理
+
+### 16.3 プロジェクト固有シナリオ
+
+Mod 固有のシナリオは `tests/e2e/` に配置する。
+
+プロジェクト側では、対象 AC の表示状態を作成し、撮影位置を指定する。
+
+例として加工機モデルの確認では、加工機を world に設置し、モデルとテクスチャを観測するための視点を設定する。
+
+共通の client/server 起動・停止処理には Harness 側のテンプレートを使用する。
+
+### 16.4 実行結果
+
+Harness は各 scenario の実行結果と screenshot を保存する。
+
+結果には少なくとも次を含める。
+
+- Scenario ID
+- 対象 AC ID
+- Scenario の実行成否
+- Screenshot path
+- 実行 log
+
+Scenario の成功は、シーン準備と screenshot 取得の完了を示す。
+
+表示内容の合否は Claude の E2E レビューによって決定する。
+
+## 17. Claude E2E レビュー
+
+### 17.1 初回レビュー
+
+Claude は E2E の screenshot と対応する AC の Expected Result を確認する。
+
+表示上の問題を初回レビューで列挙し、`ER-001`、`ER-002` の形式で ID を付ける。
+
+各指摘には次を含める。
+
+- Issue ID
+- 対象 AC
+- Screenshot
+- 問題内容
+- 修正内容
+
+初回レビュー完了時点で issue set を固定する。
+
+### 17.2 修正レビュー
+
+E2E レビューで指摘が存在する場合、Codex に修正を依頼する。
+
+```text
+Initial E2E Review
+    ↓
+Issue Set 確定
+    ↓
+Codex Repair
+    ↓
+Compile / Build
+    ↓
+GameTest
+    ↓
+E2E
+    ↓
+Claude Follow-up Review
+```
+
+2回目以降の Claude review は、初回 issue set の解消状態だけを判断する。
+
+**2回目以降に新しい指摘を追加することは禁止する。**
+
+Issue の状態は `open`、`resolved`、`accepted` とする。
+
+Code Review と同じ規則で `accepted` の理由を記録する。
+
+すべての issue が `resolved` または `accepted` になるまで処理を繰り返す。
+
+## 18. 修正後の再確認
+
+Milestone の作業中にソースまたは resource を変更した場合、変更後の候補を Compile / Build から確認する。
+
+初回 Code Review の issue set と初回 E2E レビューの issue set は、当該 milestone 内で維持する。
+
+修正によって既存の問題が再発した場合、その issue を `open` に戻す。
+
+後続の Claude review では固定済み issue の状態だけを更新する。
+
+GameTest は修正後のコードに対して再実行する。
+
+E2E は GameTest 成功後の artifact に対して実行する。
+
+これらの工程が完了した候補を checkpoint の対象とする。
+
+## 19. 実行失敗と再試行
+
+### 19.1 実行失敗
+
+次を修正再試行の対象とする。
+
+- Compile failure
+- Build failure
+- GameTest failure
+- GameTest server crash
+- Minecraft client/server crash
+- Mod load failure
+- E2E scenario failure
+- Screenshot 取得失敗
+- 外部コマンドの一時的な失敗
+
+### 19.2 再試行
+
+各工程で実行失敗が発生した場合、Codex に失敗情報を渡して修正し、再実行する。
+
+初回実行後の修正再試行は最大3回とする。
+
+```text
+Initial Execution
+    ↓
+Failure
+    ↓
+Repair / Retry 1
+    ↓
+Failure
+    ↓
+Repair / Retry 2
+    ↓
+Failure
+    ↓
+Repair / Retry 3
+    ↓
+Failure
+    ↓
+Checkpoint Recovery
+```
+
+再試行に成功した場合は次の工程に進む。
+
+連続失敗回数は工程ごとに管理し、対象工程の成功時に0へ戻す。
+
+Claude review で `open` issue が存在する状態は、この実行失敗回数に含めない。
+
+## 20. Checkpoint Recovery
+
+### 20.1 復元条件
+
+修正再試行を3回行っても対象工程が成功しない場合、Harness は checkpoint recovery を実行する。
+
+### 20.2 復元処理
+
+Recovery では現在の milestone で作成・変更した作業途中の内容を破棄し、直前の checkpoint の状態へ復元する。
+
+```text
+Retry 3 Failure
+    ↓
+Current Milestone の変更を破棄
+    ↓
+Git Checkpoint Restore
+    ↓
+Progress Reset
+    ↓
+Milestone Restart
+```
+
+最初の milestone では、確定済み plan を含む開発開始時の commit を復元基点とする。
+
+2件目以降の milestone では、直前の完成済み milestone の checkpoint を復元基点とする。
+
+### 20.3 初期化対象
+
+Recovery では次を初期化する。
+
+- 現在 milestone の実装変更
+- 追加された GameTest
+- 追加された E2E シナリオ
+- 未確定の build artifact
+- Code Review issue set
+- E2E issue set
+- 各工程の連続失敗回数
+- 現在 milestone の途中進捗
+- 一時的な runtime 状態
+
+`PROJECT.md`、plan、完成済み milestone、過去 checkpoint は保持する。
+
+### 20.4 再開始
+
+復元後は同じ milestone の Codex implementation から再開始する。
+
+Recovery 後の Code Review と E2E レビューは、新しい初回レビューとして issue set を作成する。
+
+Milestone の再開始回数には上限を設けない。
+
+Harness は milestone が完成するか fatal error が発生するまで、実装、再試行、recovery を継続する。
+
+## 21. Git Checkpoint
+
+### 21.1 完成条件
+
+Milestone の完成条件は次のとおりとする。
+
+- 対象 Feature のすべての AC が実装されている
+- Compile が成功している
+- Build が成功している
+- Code Review の初回指摘がすべて `resolved` または `accepted`
+- 対象 GameTest がすべて成功している
+- E2E の対象 AC がすべて合格している
+- E2E の初回指摘がすべて `resolved` または `accepted`
+- Code Rules への適合が確認されている
+
+### 21.2 Commit
+
+完成条件が成立した場合、Harness が local Git commit を作成する。
+
+Commit には次を含める。
+
+- 実装ソース
+- Resource
+- GameTest
+- E2E シナリオ
+- AC 対応情報
+- 更新された progress
+
+Commit message の例を次に示す。
+
+```text
+Harness checkpoint M01
+
+Milestone: M01
+Features: F-001
+Acceptance-Criteria: AC-F001-001, AC-F001-002
+```
+
+Checkpoint は次の milestone の開始基点となる。
+
+## 22. Progress と Status
+
+`progress.json` は現在の workflow 状態を保持する。
+
+Milestone の phase は次の値とする。
+
+```text
+idle
+implementation
+build
+code_review
+gametest
+e2e
+checkpoint
+recovery
+complete
+fatal
+```
+
+`harness status` は次を表示する。
+
+```text
+Project
+Current Commit
+Current Milestone
+Current Phase
+
+Completed Milestones
+Remaining Milestones
+
+Build Retry Count
+GameTest Retry Count
+E2E Retry Count
+Milestone Recovery Count
+
+Open Code Review Issues
+Open E2E Issues
+
+Last Checkpoint
+Overall Status
+```
+
+各 milestone の checkpoint 作成時に、その完成状態を `progress.json` に保存して Git commit に含める。
+
+## 23. Fatal Error
+
+Fatal error は、Harness の開発 workflow を継続するための基本条件が失われた場合に発生する。
+
+主な対象は次のとおりとする。
+
+- `PROJECT.md` の構造が不正で解釈できない
+- Plan または Progress を解釈できない
+- 必須外部コマンドが利用できない
+- Codex または Claude の実行設定が成立していない
+- Minecraft runtime の必須設定が欠落している
+- Git repository または checkpoint が利用できない
+- Checkpoint recovery に失敗した
+- Harness 本体が実行中に変更された
+- Harness の内部状態が破損した
+- Harness 自身が処理継続不能な内部例外を発生させた
+
+通常の Compile / Build、GameTest、E2E の失敗は修正再試行および recovery によって処理する。
+
+Fatal error が発生した場合、Harness は処理を終了し、原因と発生工程を表示する。
+
+## 24. 完了条件
+
+プロジェクト全体の完成条件は次のとおりとする。
+
+- すべての active Feature が plan に含まれている
+- すべての milestone が checkpoint になっている
+- すべての active AC が GameTest または E2E で確認済み
+- すべての Claude review issue が完了している
+- `progress.json` が全 milestone の完成を示している
+- 最終 checkpoint が Git HEAD になっている
+- Git working tree が clean
+
+これらが成立すると全体状態を `complete` とする。
+
+最終 milestone の checkpoint には `complete` 状態の progress を含める。
+
+## 25. 標準ワークフロー
+
+利用者による基本操作は次のとおりとする。
+
+```text
+NeoForge Workspace 準備
+    ↓
+Harness Submodule 追加
+    ↓
+harness init
+    ↓
+harness doctor
+    ↓
+PROJECT.md 作成
+    ↓
+harness validate
+    ↓
+harness plan
+    ↓
+harness develop
+    ↓
+complete
+```
+
+`harness develop` は次の処理を自動実行する。
+
+```text
+┌───────────────────────────────┐
+│ Milestone                     │
+│                               │
+│ Codex Implementation          │
+│          ↓                    │
+│ Compile / Build               │
+│          ↓                    │
+│ Claude Code Review            │
+│     └─ Repair Loop            │
+│          ↓                    │
+│ GameTest                      │
+│          ↓                    │
+│ E2E                           │
+│     └─ Repair Loop            │
+│          ↓                    │
+│ Git Checkpoint                │
+└───────────────────────────────┘
+              ↓
+        Next Milestone
+```
+
+実行失敗時の処理は次のとおりとする。
+
+```text
+Execution Failure
+    ↓
+Codex Repair
+    ↓
+Retry
+    ↓
+最大3回
+    ↓
+Checkpoint Recovery
+    ↓
+Same Milestone Restart
+```
+
+すべての milestone が完成するまでこの処理を継続する。
+
+## 26. 基本原則
+
+**製品仕様の一元化**
+
+`PROJECT.md` を製品仕様の正本とし、すべての実装・確認はその AC に基づいて行う。
+
+**Feature 単位の開発**
+
+一つ以上の完全な Feature を一つの milestone として実装する。
+
+**Code Rules の強制**
+
+Codex の全実装・修正作業に Code Rules を適用し、Claude の初回 Code Review で適合を確認する。
+
+**GameTest による機能確認**
+
+ゲーム内の状態、処理、保存、同期などを GameTest で確認する。
+
+**E2E による描画確認**
+
+Minecraft client の描画結果を screenshot で取得し、Claude が確認する。
+
+**固定されたレビュー指摘**
+
+Claude は初回レビューで指摘事項を確定し、2回目以降は固定された issue set の解消状態だけを確認する。
+
+**自動修正と再試行**
+
+実行失敗時は Codex による修正と最大3回の再試行を行う。
+
+**Checkpoint Recovery**
+
+修正再試行によって成功しない場合は直前の checkpoint に復元し、同じ milestone を再実装する。
+
+**Git による進捗確定**
+
+完成した milestone の実装と進捗を local Git commit に保存する。
+
+**最小限の状態管理**
+
+Harness の運用状態は plan と progress を中心に管理する。実行ログや runtime は一時データとして保持する。
+
+**連続実行**
+
+`harness develop` は全 milestone の完成または fatal error まで処理を継続する。
