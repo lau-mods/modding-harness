@@ -1,0 +1,10 @@
+import type { ReviewIssue } from '../review/issues.js';
+import type { CodeReviewInput, PlanInput, SpecEditInput, VisualReviewInput } from './claude.js';
+import type { ImplementationInput } from './codex.js';
+export declare function implementationPrompt(input: ImplementationInput): string;
+export declare function planPrompt(input: PlanInput): string;
+export declare function specEditPrompt(input: SpecEditInput): string;
+export declare function codeReviewPrompt(input: CodeReviewInput): string;
+export declare function codeRecheckPrompt(input: CodeReviewInput, issues: ReviewIssue[]): string;
+export declare function visualReviewPrompt(input: VisualReviewInput): string;
+export declare function visualRecheckPrompt(input: VisualReviewInput, issues: ReviewIssue[]): string;

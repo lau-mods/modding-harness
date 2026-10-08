@@ -1,0 +1,14 @@
+import { RetryExhausted } from '../core/errors.js';
+import type { E2ERunSummary } from '../e2e/e2e.js';
+import type { Milestone } from '../plan/plan.js';
+import type { CheckpointRecord } from '../state/state.js';
+import type { WorkflowContext } from './context.js';
+export declare function runMilestone(ctx: WorkflowContext, milestone: Milestone): Promise<CheckpointRecord>;
+export declare function attemptMilestone(ctx: WorkflowContext, milestone: Milestone): Promise<CheckpointRecord>;
+export declare function implementationStep(ctx: WorkflowContext, milestone: Milestone): Promise<void>;
+export declare function buildStep(ctx: WorkflowContext, milestone: Milestone): Promise<boolean>;
+export declare function codeReviewStep(ctx: WorkflowContext, milestone: Milestone): Promise<boolean>;
+export declare function e2eStep(ctx: WorkflowContext, milestone: Milestone): Promise<E2ERunSummary>;
+export declare function visualReviewStep(ctx: WorkflowContext, milestone: Milestone, e2e: E2ERunSummary): Promise<boolean>;
+export declare function checkpointStep(ctx: WorkflowContext, milestone: Milestone): Promise<CheckpointRecord>;
+export declare function rollbackMilestone(ctx: WorkflowContext, milestone: Milestone, failure: RetryExhausted): Promise<void>;
