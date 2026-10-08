@@ -1,0 +1,26 @@
+{
+  "name": "modding-harness",
+  "version": "0.2.0",
+  "description": "Local development harness that builds NeoForge mods milestone by milestone from PROJECT.md",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "harness": "dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "e2e",
+    "templates",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.3"
+  }
+}
