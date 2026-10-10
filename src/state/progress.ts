@@ -1,3 +1,6 @@
+import { FatalError } from '../core/errors.js';
+import { exists, readJson, writeAtomic } from '../core/fs.js';
+import { projectPaths } from '../core/paths.js';
 import type { IssueSet } from '../review/issues.js';
 
 // milestone の工程 (§22)
@@ -34,25 +37,34 @@ export type Progress = {
 
 // plan 確定時の初期 progress を返す (§9.6)
 export function initialProgress(): Progress {
-  throw new Error('Not implemented');
+  return { status: 'idle', phase: 'idle', current: null, completed: [], lastCheckpoint: null, fatal: null };
 }
 
 // progress.json を読む。存在しなければ null、解釈できなければ FatalError (§23)
 export async function loadProgress(root: string): Promise<Progress | null> {
-  throw new Error('Not implemented');
+  const file = projectPaths(root).progress;
+  if (!await exists(file)) return null;
+  let value: unknown;
+  try { value = await readJson(file); }
+  catch (error) { throw new FatalError(`Cannot read progress.json: ${(error as Error).message}`); }
+  const progress = value as Partial<Progress> | null;
+  const valid = typeof progress?.status === 'string' && typeof progress.phase === 'string'
+    && Array.isArray(progress.completed) && progress.current !== undefined && progress.lastCheckpoint !== undefined && progress.fatal !== undefined;
+  if (!valid) throw new FatalError('progress.json does not match the progress format');
+  return progress as Progress;
 }
 
 // progress.json を保存する (§7.1)
 export async function saveProgress(root: string, progress: Progress): Promise<void> {
-  throw new Error('Not implemented');
+  await writeAtomic(projectPaths(root).progress, progress);
 }
 
 // milestone 開始時の途中進捗を作る。recovery 回数は引き継ぐ (§20.3)
 export function newMilestoneProgress(id: string, baseCommit: string, recoveries: number): MilestoneProgress {
-  throw new Error('Not implemented');
+  return { id, baseCommit, failures: zeroFailures(), recoveries, codeReview: null, e2eReview: null };
 }
 
 // 全工程の連続失敗回数が 0 の記録を返す
 export function zeroFailures(): Record<FailurePhase, number> {
-  throw new Error('Not implemented');
+  return { build: 0, gametest: 0, e2e: 0 };
 }

@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // Workspace 内で Harness が状態を保持するディレクトリ (§4.1)
 export const STATE_DIR = '.harness-state';
 
@@ -17,10 +20,23 @@ export type ProjectPaths = {
 
 // Workspace root から ProjectPaths を組み立てる
 export function projectPaths(root: string): ProjectPaths {
-  throw new Error('Not implemented');
+  const state = path.join(root, STATE_DIR);
+  const runtime = path.join(state, 'runtime');
+  return {
+    root,
+    spec: path.join(root, 'PROJECT.md'),
+    config: path.join(root, '.harness-config.json'),
+    plan: path.join(state, 'plan.json'),
+    progress: path.join(state, 'progress.json'),
+    runs: path.join(state, 'runs'),
+    runtime,
+    lock: path.join(runtime, 'harness.lock'),
+    acceptance: path.join(root, 'tests', 'acceptance.json'),
+    e2e: path.join(root, 'tests', 'e2e'),
+  };
 }
 
 // Harness 本体 (.harness) のディレクトリを返す。templates の参照元であり改変検出の対象 (§4.2)
 export function harnessRoot(): string {
-  throw new Error('Not implemented');
+  return fileURLToPath(new URL('../../', import.meta.url));
 }

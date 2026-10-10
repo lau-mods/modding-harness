@@ -24,30 +24,47 @@ export type IssueSet = { kind: IssueKind; issues: ReviewIssue[] };
 
 // 初回レビューの指摘に ID を付与し、指摘集合として固定する (§14.1, §17.1)
 export function createIssueSet(kind: IssueKind, findings: ReviewFinding[]): IssueSet {
-  throw new Error('Not implemented');
+  return { kind, issues: findings.map((finding, index) => ({ ...finding, id: issueId(kind, index), status: 'open', history: [] })) };
 }
 
-// 修正レビューの判定を固定済み指摘にだけ反映する。集合に無い ID の判定は無視する (§14.2, §17.2)
+// 修正レビューの判定を固定済み指摘にだけ反映する。集合に無い ID の判定と accepted の指摘は変更しない (§14.2, §17.2)
 export function applyVerdicts(set: IssueSet, verdicts: IssueVerdict[]): IssueSet {
-  throw new Error('Not implemented');
+  const at = new Date().toISOString();
+  return {
+    ...set,
+    issues: set.issues.map(issue => {
+      const verdict = verdicts.find(item => item.issueId === issue.id);
+      if (!verdict || issue.status === 'accepted') return issue;
+      return { ...issue, status: verdict.status, history: [...issue.history, { status: verdict.status, by: 'claude', note: verdict.note, at }] };
+    }),
+  };
 }
 
 // Codex の対応を反映する。理由付きの accepted を記録し、fixed は履歴に残して再レビューを待つ (§14.2)
 export function applyResponses(set: IssueSet, responses: IssueResponse[]): IssueSet {
-  throw new Error('Not implemented');
+  const at = new Date().toISOString();
+  return {
+    ...set,
+    issues: set.issues.map(issue => {
+      const response = responses.find(item => item.issueId === issue.id);
+      if (!response || issue.status !== 'open') return issue;
+      const status: IssueStatus = response.decision === 'accepted' && response.reason.trim() ? 'accepted' : 'open';
+      return { ...issue, status, history: [...issue.history, { status, by: 'codex', note: `${response.decision}: ${response.reason}`, at }] };
+    }),
+  };
 }
 
 // open の指摘を返す
 export function openIssues(set: IssueSet | null): ReviewIssue[] {
-  throw new Error('Not implemented');
+  return set?.issues.filter(issue => issue.status === 'open') ?? [];
 }
 
 // 全指摘が resolved または accepted なら true (§14.2)
 export function isSettled(set: IssueSet): boolean {
-  throw new Error('Not implemented');
+  return openIssues(set).length === 0;
 }
 
 // 種類と 0 始まりの連番から CR-001 / ER-001 形式の ID を作る
 export function issueId(kind: IssueKind, index: number): string {
-  throw new Error('Not implemented');
+  return `${kind === 'code' ? 'CR' : 'ER'}-${String(index + 1).padStart(3, '0')}`;
 }

@@ -12,12 +12,18 @@ export class FatalError extends Error {}
 
 // 修正再試行の対象となる実行失敗 (§19.1)
 export class ExecutionFailure extends Error {
-  constructor(readonly report: FailureReport) {
-    super(report.summary);
+  constructor(summary: string, readonly details = '', readonly logs: string[] = [], readonly screenshots: string[] = []) {
+    super(summary);
+  }
+
+  // 失敗した工程を付けて Codex へ渡す失敗情報にする
+  report(phase: string): FailureReport {
+    return { phase, summary: this.message, details: this.details, logs: this.logs, screenshots: this.screenshots };
   }
 }
 
 // 捕捉した例外を FatalError として扱う。Harness 内部の想定外の例外も継続不能とする (§23)
 export function toFatal(error: unknown): FatalError {
-  throw new Error('Not implemented');
+  if (error instanceof FatalError) return error;
+  return new FatalError(error instanceof Error ? error.message : String(error), { cause: error });
 }
