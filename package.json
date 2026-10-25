@@ -16,7 +16,7 @@
     "docs"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli/main.js",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
