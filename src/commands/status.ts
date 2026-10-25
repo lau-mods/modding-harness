@@ -1,63 +1,84 @@
+import { findCheckpoint, head } from '../git/git.js';
 import { loadPlan } from '../plan/plan.js';
 import type { ReviewIssue } from '../review/issues.js';
+import { openIssues } from '../review/issues.js';
 import { readProject } from '../spec/parser.js';
-import { loadState } from '../state/state.js';
-import type { Phase, RetryState } from '../state/state.js';
-import { MAX_ATTEMPTS } from '../core/retry.js';
+import { initialProgress, loadProgress } from '../state/progress.js';
+import type { OverallStatus, Phase } from '../state/progress.js';
 
-// harness status の表示内容 (§24)
+// harness status の表示内容 (§9.5, §22)
 export type StatusReport = {
-  projectStatus: 'draft' | 'active' | 'complete';
-  checkpoint: string | null;
-  milestone: string | null;
-  phase: Phase;
+  project: string;
+  currentCommit: string;
+  currentMilestone: string | null;
+  currentPhase: Phase;
   completedMilestones: string[];
   remainingMilestones: string[];
-  reviewIssues: ReviewIssue[]; // コードレビュー・画面確認の指摘とその現在状態
-  scenario: string | null;
-  retry: RetryState | null;
-  rollbackCount: number;
+  buildRetries: number;
+  gameTestRetries: number;
+  e2eRetries: number;
+  recoveries: number;
+  openCodeReviewIssues: ReviewIssue[];
+  openE2EIssues: ReviewIssue[];
+  lastCheckpoint: string | null;
+  overallStatus: OverallStatus;
   fatal: string | null;
 };
 
-// state / 計画 / PROJECT.md から状態表示用の情報を集める (§24, §29)
+// PROJECT.md・plan・progress・Git から状態表示用の情報を集める。develop 実行中も参照できる (§3, §9.5)
 export async function collectStatus(root: string): Promise<StatusReport> {
-  const state = await loadState(root);
+  const spec = await readProject(root).catch(() => null);
   const plan = await loadPlan(root);
-  const spec = await readProject(root);
-  const runtime = state.milestone;
-  const completed = state.checkpoints.map(checkpoint => checkpoint.milestone);
+  const progress = await loadProgress(root) ?? initialProgress();
+  const current = progress.current;
+  const completed = progress.completed;
+  // checkpoint commit は自身の hash を progress に含められないため、完成済み milestone の checkpoint は履歴から求める
+  const lastCompleted = completed.at(-1);
   return {
-    projectStatus: state.phase === 'complete' ? 'complete' : spec.status,
-    checkpoint: state.checkpoints.at(-1)?.commit ?? null,
-    milestone: state.currentMilestone,
-    phase: state.phase,
+    project: spec ? spec.projectId || spec.modId || '-' : '-',
+    currentCommit: await head(root),
+    currentMilestone: current?.id ?? null,
+    currentPhase: progress.phase,
     completedMilestones: completed,
     remainingMilestones: plan?.milestones.map(milestone => milestone.id).filter(id => !completed.includes(id)) ?? [],
-    reviewIssues: [...runtime?.codeReview?.issues ?? [], ...runtime?.visualReview?.issues ?? []],
-    scenario: runtime?.scenario ?? null,
-    retry: state.retry,
-    rollbackCount: state.rollbacks.length,
-    fatal: state.fatal?.reason ?? null,
+    buildRetries: current?.failures.build ?? 0,
+    gameTestRetries: current?.failures.gametest ?? 0,
+    e2eRetries: current?.failures.e2e ?? 0,
+    recoveries: current?.recoveries ?? 0,
+    openCodeReviewIssues: openIssues(current?.codeReview ?? null),
+    openE2EIssues: openIssues(current?.e2eReview ?? null),
+    lastCheckpoint: (lastCompleted && await findCheckpoint(root, lastCompleted)) ?? progress.lastCheckpoint,
+    overallStatus: progress.status,
+    fatal: progress.fatal ? `${progress.fatal.reason} (phase: ${progress.fatal.phase}, at ${progress.fatal.at})` : null,
   };
 }
 
-// StatusReport を端末表示用のテキストにする
+// StatusReport を端末表示用のテキストにする (§22)
 export function formatStatus(report: StatusReport): string {
   const list = (items: string[]): string => items.length ? items.join(', ') : '-';
+  const issues = (items: ReviewIssue[]): string[] => items.length ? items.map(issue => `  ${issue.id} ${issue.target}: ${issue.problem}`) : [];
   const lines = [
-    `Project status:       ${report.projectStatus}`,
-    `Current checkpoint:   ${report.checkpoint ?? '-'}`,
-    `Current milestone:    ${report.milestone ?? '-'}`,
-    `Current phase:        ${report.phase}`,
-    `Completed milestones: ${list(report.completedMilestones)}`,
-    `Remaining milestones: ${list(report.remainingMilestones)}`,
-    `Review issues:        ${report.reviewIssues.length ? '' : '-'}`,
-    ...report.reviewIssues.map(issue => `  ${issue.id} [${issue.status}] ${issue.title}`),
-    `Current E2E scenario: ${report.scenario ?? '-'}`,
-    `Retry:                ${report.retry ? `${report.retry.operation} attempt ${report.retry.attempt}/${MAX_ATTEMPTS}` : '-'}`,
-    `Rollback count:       ${report.rollbackCount}`,
+    `Project:                  ${report.project}`,
+    `Current Commit:           ${report.currentCommit}`,
+    `Current Milestone:        ${report.currentMilestone ?? '-'}`,
+    `Current Phase:            ${report.currentPhase}`,
+    '',
+    `Completed Milestones:     ${list(report.completedMilestones)}`,
+    `Remaining Milestones:     ${list(report.remainingMilestones)}`,
+    '',
+    `Build Retry Count:        ${report.buildRetries}`,
+    `GameTest Retry Count:     ${report.gameTestRetries}`,
+    `E2E Retry Count:          ${report.e2eRetries}`,
+    `Milestone Recovery Count: ${report.recoveries}`,
+    '',
+    `Open Code Review Issues:  ${report.openCodeReviewIssues.length}`,
+    ...issues(report.openCodeReviewIssues),
+    `Open E2E Issues:          ${report.openE2EIssues.length}`,
+    ...issues(report.openE2EIssues),
+    '',
+    `Last Checkpoint:          ${report.lastCheckpoint ?? '-'}`,
+    `Overall Status:           ${report.overallStatus}`,
   ];
-  if (report.fatal) lines.push(`Fatal:                ${report.fatal}`);
+  if (report.fatal) lines.push(`Fatal:                    ${report.fatal}`);
   return lines.join('\n');
 }

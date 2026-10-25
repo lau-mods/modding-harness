@@ -1,37 +1,35 @@
+import { e2eFor, gameTestsFor, loadAcceptance } from '../acceptance/acceptance.js';
 import { FatalError, toFatal } from '../core/errors.js';
-import { run } from '../core/process.js';
+import { withLock } from '../core/lock.js';
 import type { Runner } from '../core/process.js';
-import { isClean } from '../git/git.js';
-import { checkPlan, loadPlan, nextMilestone } from '../plan/plan.js';
-import type { Plan } from '../plan/plan.js';
-import { activeCriteria, requireActionable } from '../spec/check.js';
-import { saveState, withLock } from '../state/state.js';
-import type { Phase } from '../state/state.js';
-import { enterPhase, openContext } from '../workflow/context.js';
+import { findCheckpoint, harnessSubmoduleReady, head, isClean } from '../git/git.js';
+import { checkPlan, nextMilestone } from '../plan/plan.js';
+import { allCriteria, checkActiveConditions, checkSpec } from '../spec/check.js';
+import type { OverallStatus } from '../state/progress.js';
+import { openContext, saveContext } from '../workflow/context.js';
 import type { WorkflowContext } from '../workflow/context.js';
 import { runMilestone } from '../workflow/milestone.js';
-import { createPlan } from './plan.js';
-import { preflight } from './preflight.js';
+import { doctor } from './doctor.js';
 
-// 実機環境を preflight で確認し、全 milestone を順に checkpoint まで進め、complete または fatal に到達するまで継続する (§7, §22, §31)
-export async function developProject(root: string, runner: Runner = run): Promise<Phase> {
+// 開始条件を確認し、全 milestone を依存順に checkpoint まで進め、complete または fatal で終了する (§10, §24)
+export async function developProject(root: string, runner: Runner): Promise<OverallStatus> {
   return withLock(root, async () => {
     const ctx = await openContext(root, runner);
+    if (!nextMilestone(ctx.plan, ctx.progress.completed)) {
+      await completeProject(ctx);
+      return ctx.progress.status;
+    }
+    // 開始条件の不成立では作業ツリーを変更しないよう、progress に fatal を記録せずに終了する
+    await checkStartConditions(ctx);
     try {
-      requireActionable(ctx.spec);
-      await requireIgnoredState(ctx);
-      if (!ctx.state.milestone && !await isClean(root)) throw new FatalError('Commit local changes before harness develop; each milestone starts from a clean checkpoint');
-      await enterPhase(ctx, 'preflight');
-      await preflight(root, runner);
-      const plan = await ensurePlan(ctx);
-      ctx.state.planLocked = true;
-      ctx.state.fatal = null;
-      await saveState(root, ctx.state);
-      for (let milestone = nextMilestone(plan, ctx.state.checkpoints); milestone; milestone = nextMilestone(plan, ctx.state.checkpoints)) {
+      ctx.progress.status = 'running';
+      ctx.progress.fatal = null;
+      await saveContext(ctx);
+      for (let milestone = nextMilestone(ctx.plan, ctx.progress.completed); milestone; milestone = nextMilestone(ctx.plan, ctx.progress.completed)) {
         await runMilestone(ctx, milestone);
       }
-      await completeProject(ctx, plan);
-      return ctx.state.phase;
+      await completeProject(ctx);
+      return ctx.progress.status;
     } catch (error) {
       const fatal = toFatal(error);
       await recordFatal(ctx, fatal);
@@ -40,39 +38,42 @@ export async function developProject(root: string, runner: Runner = run): Promis
   });
 }
 
-// 保存済み計画を使い、無いか PROJECT.md と対応しなければ新しく作る。固定中の計画はそのまま使う (§6)
-export async function ensurePlan(ctx: WorkflowContext): Promise<Plan> {
-  const plan = await loadPlan(ctx.root);
-  if (ctx.state.planLocked) {
-    if (!plan) throw new FatalError('The fixed implementation plan is missing');
-    if (plan.specHash !== ctx.spec.hash) throw new FatalError('PROJECT.md differs from the fixed plan; restore PROJECT.md to continue development');
-    return plan;
+// active な仕様・確定した plan・clean な作業ツリー・submodule・agent・Gradle・E2E 環境を確認する。不成立は FatalError (§10.1)
+export async function checkStartConditions(ctx: WorkflowContext): Promise<void> {
+  const problems: string[] = [];
+  if (ctx.spec.status !== 'active') problems.push('PROJECT.md Status must be active');
+  problems.push(...checkSpec(ctx.spec), ...checkActiveConditions(ctx.spec), ...checkPlan(ctx.plan, ctx.spec));
+  if (!await isClean(ctx.root)) problems.push('The Git working tree must be clean; commit or discard local changes');
+  if (!await harnessSubmoduleReady(ctx.root)) problems.push('The .harness submodule must be checked out at the recorded revision without local changes');
+  for (const item of await doctor(ctx.root, ctx.runner)) {
+    if (item.status !== 'ok') problems.push(`${item.name} is ${item.status}: ${item.detail.split('\n')[0]}`);
   }
-  if (plan && !checkPlan(plan, ctx.spec).length) return plan;
-  return createPlan(ctx);
+  if (problems.length) throw new FatalError(`harness develop cannot start:\n- ${problems.join('\n- ')}`);
 }
 
-// complete の条件 (計画で除外した AC を除く全 active AC の checkpoint) を満たすか確認し、満たせば phase を complete にして計画の固定を解除する (§22)
-export async function completeProject(ctx: WorkflowContext, plan: Plan): Promise<void> {
-  const done = new Set(ctx.state.checkpoints.map(checkpoint => checkpoint.milestone));
-  const covered = new Set([...ctx.state.checkpoints.flatMap(checkpoint => checkpoint.acIds), ...plan.excluded.map(item => item.acId)]);
-  const missing = [
-    ...plan.milestones.filter(milestone => !done.has(milestone.id)).map(milestone => milestone.id),
-    ...activeCriteria(ctx.spec).filter(criterion => !covered.has(criterion.id)).map(criterion => criterion.id),
-  ];
-  if (missing.length) throw new FatalError(`Development ended with incomplete items: ${missing.join(', ')}`);
-  Object.assign(ctx.state, { planLocked: false, currentMilestone: null, milestone: null, retry: null });
-  await enterPhase(ctx, 'complete');
+// プロジェクト全体の完成条件を確認する。complete の progress は最終 checkpoint に含まれている (§24)
+export async function completeProject(ctx: WorkflowContext): Promise<void> {
+  const problems: string[] = [];
+  const incomplete = ctx.plan.milestones.filter(milestone => !ctx.progress.completed.includes(milestone.id));
+  if (incomplete.length) problems.push(`Milestones are not completed: ${incomplete.map(milestone => milestone.id).join(', ')}`);
+  const assigned = new Set(ctx.plan.milestones.flatMap(milestone => milestone.features));
+  const unplanned = ctx.spec.features.filter(feature => !assigned.has(feature.id));
+  if (unplanned.length) problems.push(`Features are not in the plan: ${unplanned.map(feature => feature.id).join(', ')}`);
+  const acceptance = await loadAcceptance(ctx.root);
+  const unverified = allCriteria(ctx.spec).filter(criterion => !gameTestsFor(acceptance, [criterion.id]).length && !e2eFor(acceptance, [criterion.id]).length);
+  if (unverified.length) problems.push(`Acceptance Criteria have no GameTest or E2E: ${unverified.map(criterion => criterion.id).join(', ')}`);
+  if (ctx.progress.status !== 'complete') problems.push(`progress.json status is ${ctx.progress.status}, not complete`);
+  const last = ctx.progress.completed.at(-1);
+  if (!last || await findCheckpoint(ctx.root, last) !== await head(ctx.root)) problems.push('The final checkpoint must be the Git HEAD');
+  if (!await isClean(ctx.root)) problems.push('The Git working tree must be clean');
+  if (problems.length) throw new FatalError(`The project does not meet the completion conditions:\n- ${problems.join('\n- ')}`);
+  process.stderr.write('[harness] complete\n');
 }
 
-// fatal の原因を state に記録して phase を fatal にする (§20)
+// fatal の原因と発生工程を progress に記録する (§23)
 export async function recordFatal(ctx: WorkflowContext, error: FatalError): Promise<void> {
-  ctx.state.fatal = { reason: error.message, at: new Date().toISOString() };
-  await enterPhase(ctx, 'fatal');
-}
-
-// checkpoint commit に状態ファイルが入らないよう、.harness-state が gitignore 対象であることを確認する
-async function requireIgnoredState(ctx: WorkflowContext): Promise<void> {
-  const result = await run('git', ['check-ignore', '-q', '.harness-state/state.json'], { cwd: ctx.root });
-  if (result.code !== 0) throw new FatalError('Add .harness-state/ to .gitignore (harness init does this)');
+  ctx.progress.fatal = { phase: ctx.progress.phase, reason: error.message, at: new Date().toISOString() };
+  ctx.progress.status = 'fatal';
+  ctx.progress.phase = 'fatal';
+  await saveContext(ctx);
 }

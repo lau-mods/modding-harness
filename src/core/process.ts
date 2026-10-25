@@ -5,21 +5,24 @@ import { ExecutionFailure, FatalError } from './errors.js';
 
 // 外部コマンドの終了結果
 export type ProcessResult = { code: number; stdout: string; stderr: string; durationMs: number };
-// 外部コマンドの実行設定。logDir を指定すると command.json と stdout/stderr をそこへ保存する (§29)
+
+// 外部コマンドの実行設定。logDir を指定すると command.json と stdout/stderr をそこへ保存する
 export type ProcessOptions = { cwd: string; input?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; logDir?: string };
+
 // テストで差し替え可能な外部コマンド実行関数
 export type Runner = (command: string, args: string[], options: ProcessOptions) => Promise<ProcessResult>;
 
-// 外部コマンドを argv のまま直接実行する。executable が存在しない場合は FatalError、timeout は ExecutionFailure (§17, §20)
+// 外部コマンドを argv のまま実行する。executable が無ければ FatalError、timeout は ExecutionFailure (§19.1, §23)
 export async function run(command: string, args: string[], options: ProcessOptions): Promise<ProcessResult> {
   const started = Date.now();
   const result = await new Promise<ProcessResult>((resolve, reject) => {
+    // timeout 時に子孫 process ごと停止できるよう、独立した process group で起動する
     const child = spawn(command, args, { cwd: options.cwd, env: { ...process.env, ...options.env }, stdio: 'pipe', detached: true });
     const stdout: Buffer[] = [], stderr: Buffer[] = [];
     let timedOut = false;
     const timer = options.timeoutMs === undefined ? undefined : setTimeout(() => {
       timedOut = true;
-      process.kill(-child.pid!, 'SIGKILL');
+      try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* 既に終了している */ }
     }, options.timeoutMs);
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
@@ -32,7 +35,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
     child.on('close', code => {
       clearTimeout(timer);
       const output = { code: code ?? 1, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8'), durationMs: Date.now() - started };
-      if (timedOut) reject(new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`));
+      if (timedOut) reject(new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`, tail(output.stderr + output.stdout, 4000)));
       else resolve(output);
     });
     child.stdin.end(options.input ?? '');
@@ -46,9 +49,9 @@ export async function run(command: string, args: string[], options: ProcessOptio
   return result;
 }
 
-// 終了コードが 0 でなければ ExecutionFailure を投げる (§17)
+// 終了コードが 0 でなければ ExecutionFailure を投げる (§19.1)
 export function requireSuccess(result: ProcessResult, operation: string): ProcessResult {
-  if (result.code !== 0) throw new ExecutionFailure(`${operation} failed (exit ${result.code}): ${tail(result.stderr + result.stdout, 2000)}`);
+  if (result.code !== 0) throw new ExecutionFailure(`${operation} failed (exit ${result.code})`, tail(result.stderr + result.stdout, 4000));
   return result;
 }
 

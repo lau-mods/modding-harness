@@ -1,91 +1,82 @@
 import { readFile } from 'node:fs/promises';
 import { FatalError } from '../core/errors.js';
-import { sha256 } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
-import type { AcceptanceCriterion, CrossCuttingTopic, Feature, ItemStatus, ProjectSpec, Requirement } from './types.js';
+import type { AcceptanceCriterion, Feature, ProjectSpec } from './types.js';
 
 type Heading = { level: number; title: string; line: number };
 
-const TOPICS: CrossCuttingTopic[] = ['Persistence', 'Multiplayer', 'Visual', 'Performance', 'Compatibility'];
-
-// PROJECT.md の Markdown を ProjectSpec に変換する。見出し構造が成立しない場合は例外を投げる (§3)
+// PROJECT.md の本文を ProjectSpec に変換する。見出し構造を解釈できなければ FatalError (§5.2, §23)
 export function parseProject(text: string): ProjectSpec {
   const lines = text.replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/);
   const headings = findHeadings(lines);
-  const root = headings.find(h => h.level === 1 && h.title === 'Project');
-  if (!root) throw new Error('PROJECT.md requires a "# Project" heading');
+  const root = headings.find(heading => heading.level === 1 && heading.title === 'Project');
+  if (!root) throw new FatalError('PROJECT.md requires a "# Project" heading');
 
   // 見出しの直下の本文 (次の見出しまで)
-  const ownBody = (h: Heading): string => {
-    const next = headings.find(other => other.line > h.line);
-    return lines.slice(h.line + 1, next?.line ?? lines.length).join('\n').trim();
+  const ownBody = (heading: Heading): string => {
+    const next = headings.find(other => other.line > heading.line);
+    return lines.slice(heading.line + 1, next?.line ?? lines.length).join('\n').trim();
   };
-  // 見出し h の配下にある見出し
-  const children = (h: Heading, level: number): Heading[] => {
-    const end = headings.find(other => other.line > h.line && other.level <= h.level)?.line ?? lines.length;
-    return headings.filter(other => other.line > h.line && other.line < end && other.level === level);
+  // 見出しの配下全体 (同じか上位の見出しまで)
+  const subtree = (heading: Heading): string => {
+    const end = headings.find(other => other.line > heading.line && other.level <= heading.level);
+    return lines.slice(heading.line, end?.line ?? lines.length).join('\n').trim();
+  };
+  // 見出しの配下にある指定 level の見出し
+  const children = (heading: Heading, level: number): Heading[] => {
+    const end = headings.find(other => other.line > heading.line && other.level <= heading.level)?.line ?? lines.length;
+    return headings.filter(other => other.line > heading.line && other.line < end && other.level === level);
   };
   const section = (title: string): Heading => {
-    const found = children(root, 2).find(h => h.title === title);
-    if (!found) throw new Error(`PROJECT.md requires a "## ${title}" section`);
+    const found = children(root, 2).find(heading => heading.title === title);
+    if (!found) throw new FatalError(`PROJECT.md requires a "## ${title}" section`);
     return found;
   };
+  // 節の見出しを除いた配下全体。下位見出しで整理された記述も含める
+  const sectionBody = (title: string): string => subtree(section(title)).split('\n').slice(1).join('\n').trim();
 
   const header = ownBody(root);
   const status = field(header, 'Status');
-  if (status !== 'draft' && status !== 'active') throw new Error('PROJECT.md Status must be draft or active');
+  if (status !== 'draft' && status !== 'active') throw new FatalError('PROJECT.md Status must be draft or active');
   const platform = ownBody(section('Platform'));
-  const crossCutting = section('Cross-cutting Requirements');
-  const topics = children(crossCutting, 3);
+
+  const features = children(section('Features'), 3).map((heading): Feature => {
+    const [id, title] = splitTitle(heading.title);
+    const part = (name: string): Heading | undefined => children(heading, 4).find(child => child.title === name);
+    const description = part('Description');
+    const criteriaHeading = part('Acceptance Criteria');
+    const criteria = (criteriaHeading ? children(criteriaHeading, 5) : []).map((item): AcceptanceCriterion => {
+      const [itemId, itemTitle] = splitTitle(item.title);
+      const fields = labeledFields(ownBody(item));
+      return {
+        id: itemId, featureId: id, title: itemTitle,
+        preconditions: fields.Preconditions ?? '', action: fields.Action ?? '', expectedResult: fields['Expected Result'] ?? '',
+        markdown: subtree(item),
+      };
+    });
+    return { id, title, description: description ? ownBody(description) : '', criteria, markdown: subtree(heading) };
+  });
 
   return {
     text,
-    hash: sha256(text),
     status,
     projectId: field(header, 'Project ID'),
     modId: field(header, 'Mod ID'),
-    packagePath: field(header, 'Package Path'),
     platform: { minecraft: field(platform, 'Minecraft'), neoforge: field(platform, 'NeoForge'), java: field(platform, 'Java') },
-    purpose: ownBody(section('Purpose')),
-    features: children(section('Features'), 3).map(heading => {
-      const [id, title] = splitTitle(heading.title);
-      const featureStatus = itemStatus(ownBody(heading));
-      const part = (name: string): Heading | undefined => children(heading, 4).find(h => h.title === name);
-      const items = (name: string): Heading[] => { const h = part(name); return h ? children(h, 5) : []; };
-      const description = part('Description');
-      const requirements: Requirement[] = items('Requirements').map(item => {
-        const [itemId, itemTitle] = splitTitle(item.title);
-        const body = ownBody(item);
-        return { id: itemId, featureId: id, title: itemTitle, status: combine(featureStatus, itemStatus(body)), body };
-      });
-      const criteria: AcceptanceCriterion[] = items('Acceptance Criteria').map(item => {
-        const [itemId, itemTitle] = splitTitle(item.title);
-        const body = ownBody(item);
-        const fields = labeledFields(body);
-        return {
-          id: itemId, featureId: id, title: itemTitle, status: combine(featureStatus, itemStatus(body)),
-          preconditions: fields.Preconditions ?? '', action: fields.Action ?? '', expectedResult: fields['Expected Result'] ?? '',
-          markdown: `${'#'.repeat(item.level)} ${item.title}\n\n${body}`,
-        };
-      });
-      return { id, title, status: featureStatus, description: description ? ownBody(description) : '', requirements, criteria } satisfies Feature;
-    }),
-    crossCutting: Object.fromEntries(TOPICS.map(topic => {
-      const heading = topics.find(h => h.title === topic);
-      return [topic, heading ? ownBody(heading) : ''];
-    })) as Record<CrossCuttingTopic, string>,
-    constraints: ownBody(section('Constraints')),
-    openQuestions: ownBody(section('Open Questions')),
+    purpose: sectionBody('Purpose'),
+    features,
+    globalRequirements: sectionBody('Global Requirements'),
+    constraints: sectionBody('Constraints'),
+    openQuestions: sectionBody('Open Questions'),
   };
 }
 
-// project root の PROJECT.md を読み込んで parse する。読めない場合は FatalError (§20)
+// Workspace の PROJECT.md を読み込んで ProjectSpec を返す (§5.1)
 export async function readProject(root: string): Promise<ProjectSpec> {
   let text: string;
   try { text = await readFile(projectPaths(root).spec, 'utf8'); }
   catch (error) { throw new FatalError(`Cannot read PROJECT.md: ${(error as Error).message}`); }
-  try { return parseProject(text); }
-  catch (error) { throw new FatalError((error as Error).message); }
+  return parseProject(text);
 }
 
 // code fence の外にある ATX 見出しを列挙する
@@ -111,22 +102,12 @@ function splitTitle(title: string): [string, string] {
   return match ? [match[1]!, match[2]!] : [title, ''];
 }
 
-// 本文中の "Status: retired" を読み取る (§5)
-function itemStatus(body: string): ItemStatus {
-  return /^Status:[ \t]*retired[ \t]*$/m.test(body) ? 'retired' : 'active';
-}
-
-// 親が retired なら子も retired とする
-function combine(parent: ItemStatus, own: ItemStatus): ItemStatus {
-  return parent === 'retired' ? 'retired' : own;
-}
-
-// AC 本文の Preconditions / Action / Expected Result を、次のラベルまでの複数行値として読み取る (§3)
+// AC 本文の Preconditions / Action / Expected Result を、次のラベルまでの複数行値として読み取る (§5.4)
 function labeledFields(body: string): Record<string, string> {
   const fields: Record<string, string> = {};
   let current: string | null = null;
   for (const line of body.split('\n')) {
-    const match = line.match(/^(Preconditions|Action|Expected Result|Status):[ \t]*(.*)$/);
+    const match = line.match(/^(Preconditions|Action|Expected Result):[ \t]*(.*)$/);
     if (match) { current = match[1]!; fields[current] = match[2]!; }
     else if (current) fields[current] += '\n' + line;
   }

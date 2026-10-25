@@ -1,66 +1,104 @@
 import { FatalError } from '../core/errors.js';
 import { exists, readJson, writeAtomic } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
-import { activeCriteria } from '../spec/check.js';
-import type { ProjectSpec } from '../spec/types.js';
-import type { CheckpointRecord } from '../state/state.js';
+import { findFeature } from '../spec/check.js';
+import type { AcceptanceCriterion, Feature, ProjectSpec } from '../spec/types.js';
 
-// milestone 1 件分の計画 (§6)
+// milestone 1 件分の計画。一つ以上の完全な Feature を含む (§6.1, §6.2)
 export type Milestone = {
   id: string; // M01
-  acIds: string[]; // 対象 Acceptance Criteria
-  dependsOn: string[]; // 依存 milestone
-  summary: string; // 実装対象の概要
-  scope: string[]; // 想定する変更範囲
-  e2eSummary: string; // E2E の概要
+  features: string[]; // 対象 Feature ID
+  dependsOn: string[]; // 依存 milestone ID
+  approach: string; // 実装方針
+  scope: string[]; // 想定変更領域
 };
 
-// 実装計画。作成時の PROJECT.md hash と紐付ける。excluded は計画時に除外した AC と理由 (§6)
-export type Plan = { specHash: string; createdAt: string; milestones: Milestone[]; excluded: { acId: string; reason: string }[] };
+// 確定した milestone plan。.harness-state/plan.json に保存する (§6.2)
+export type Plan = { milestones: Milestone[] };
 
-// 保存済みの計画を読む。存在しなければ null、読めなければ FatalError (§20)
+// plan.json を読む。存在しなければ null、解釈できなければ FatalError (§23)
 export async function loadPlan(root: string): Promise<Plan | null> {
   const file = projectPaths(root).plan;
   if (!await exists(file)) return null;
-  try { return await readJson(file) as Plan; }
-  catch (error) { throw new FatalError(`Cannot read the implementation plan: ${(error as Error).message}`); }
+  let value: unknown;
+  try { value = await readJson(file); }
+  catch (error) { throw new FatalError(`Cannot read plan.json: ${(error as Error).message}`); }
+  const strings = (item: unknown): boolean => Array.isArray(item) && item.every(entry => typeof entry === 'string');
+  const milestones = (value as { milestones?: unknown } | null)?.milestones;
+  const valid = Array.isArray(milestones) && milestones.every(item =>
+    typeof item?.id === 'string' && strings(item.features) && strings(item.dependsOn) && typeof item.approach === 'string' && strings(item.scope));
+  if (!valid) throw new FatalError('plan.json does not match the plan format');
+  return value as Plan;
 }
 
-// 計画を保存する
+// plan.json を保存する
 export async function savePlan(root: string, plan: Plan): Promise<void> {
   await writeAtomic(projectPaths(root).plan, plan);
 }
 
-// 除外分を除く全 active AC がちょうど 1 つの milestone に割り当てられ、依存が先行していることなどを検査して問題を列挙する (§6)
+// Feature の網羅性・重複の無い割り当て・依存関係の妥当性を検査して問題を列挙する (§6.1, §6.2, §9.4)
 export function checkPlan(plan: Plan, spec: ProjectSpec): string[] {
   const problems: string[] = [];
-  if (plan.specHash !== spec.hash) problems.push('Plan was created for a different PROJECT.md');
-  if (!plan.milestones.length) problems.push('Plan requires at least one milestone');
-  const active = new Set(activeCriteria(spec).map(criterion => criterion.id));
-  const assigned = new Set<string>();
+  if (!plan.milestones.length) problems.push('The plan requires at least one milestone');
+  const ids = plan.milestones.map(milestone => milestone.id);
+  const assigned = new Map<string, string>();
   plan.milestones.forEach((milestone, index) => {
     if (milestone.id !== milestoneId(index)) problems.push(`Milestone ${index + 1} must have ID ${milestoneId(index)} (got ${milestone.id})`);
-    if (!milestone.acIds.length) problems.push(`${milestone.id} has no Acceptance Criteria`);
-    for (const id of milestone.acIds) {
-      if (!active.has(id)) problems.push(`${milestone.id} references an unknown or retired AC: ${id}`);
-      if (assigned.has(id)) problems.push(`${id} is assigned to more than one milestone`);
-      assigned.add(id);
+    if (!milestone.features.length) problems.push(`${milestone.id} has no Feature`);
+    for (const feature of milestone.features) {
+      if (!findFeature(spec, feature)) problems.push(`${milestone.id} references an unknown Feature: ${feature}`);
+      const owner = assigned.get(feature);
+      if (owner) problems.push(`${feature} is assigned to both ${owner} and ${milestone.id}; a Feature belongs to exactly one milestone`);
+      assigned.set(feature, milestone.id);
     }
     for (const dependency of milestone.dependsOn) {
-      if (!plan.milestones.slice(0, index).some(previous => previous.id === dependency)) problems.push(`${milestone.id} depends on ${dependency}, which must come earlier`);
+      if (!ids.includes(dependency) || dependency === milestone.id) problems.push(`${milestone.id} depends on an invalid milestone: ${dependency}`);
     }
   });
-  for (const { acId } of plan.excluded) assigned.add(acId);
-  for (const id of active) if (!assigned.has(id)) problems.push(`${id} is assigned to no milestone`);
+  for (const feature of spec.features) if (!assigned.has(feature.id)) problems.push(`${feature.id} is assigned to no milestone`);
+  if (!problems.length && !topologicalOrder(plan)) problems.push('Milestone dependencies contain a cycle');
   return problems;
 }
 
-// 0 始まりの index から M01 形式の milestone ID を作る (§6)
+// 依存関係を満たす実行順に milestone を並べる。循環があれば FatalError (§10.2)
+export function orderMilestones(plan: Plan): Milestone[] {
+  const order = topologicalOrder(plan);
+  if (!order) throw new FatalError('Milestone dependencies contain a cycle');
+  return order;
+}
+
+// 完成済みでない milestone のうち、実行順で最初のものを返す。全て完成していれば null (§10.2)
+export function nextMilestone(plan: Plan, completed: string[]): Milestone | null {
+  return orderMilestones(plan).find(milestone => !completed.includes(milestone.id)) ?? null;
+}
+
+// milestone に所属する Feature を PROJECT.md から求める (§6.2)
+export function milestoneFeatures(spec: ProjectSpec, milestone: Milestone): Feature[] {
+  return milestone.features.map(id => {
+    const feature = findFeature(spec, id);
+    if (!feature) throw new FatalError(`${milestone.id} references ${id}, which PROJECT.md does not define`);
+    return feature;
+  });
+}
+
+// milestone に所属する AC を PROJECT.md から求める (§6.2)
+export function milestoneCriteria(spec: ProjectSpec, milestone: Milestone): AcceptanceCriterion[] {
+  return milestoneFeatures(spec, milestone).flatMap(feature => feature.criteria);
+}
+
+// 0 始まりの index から M01 形式の milestone ID を作る (§6.2)
 export function milestoneId(index: number): string {
   return `M${String(index + 1).padStart(2, '0')}`;
 }
 
-// checkpoint 済みでない最初の milestone を返す。全て完了していれば null
-export function nextMilestone(plan: Plan, checkpoints: CheckpointRecord[]): Milestone | null {
-  return plan.milestones.find(milestone => !checkpoints.some(checkpoint => checkpoint.milestone === milestone.id)) ?? null;
+// plan の記載順を保ちつつ、依存先が先に来る順に並べる。循環があれば null
+function topologicalOrder(plan: Plan): Milestone[] | null {
+  const order: Milestone[] = [];
+  const pending = [...plan.milestones];
+  while (pending.length) {
+    const index = pending.findIndex(milestone => milestone.dependsOn.every(dependency => order.some(done => done.id === dependency)));
+    if (index < 0) return null;
+    order.push(...pending.splice(index, 1));
+  }
+  return order;
 }

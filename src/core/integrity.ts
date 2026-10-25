@@ -4,29 +4,33 @@ import { FatalError } from './errors.js';
 import { sha256 } from './fs.js';
 import { harnessRoot, projectPaths } from './paths.js';
 
-// 開発実行中に変更を禁止する対象の、開始時点の fingerprint
+// develop 実行中に変更を禁止する対象の、開始時点の fingerprint (§4.2, §6.3, §11)
 export type IntegrityBaseline = {
-  harness: string; // Harness 本体 (配布ファイル一式)
+  harness: string; // Harness 本体 (.harness)
   spec: string; // PROJECT.md
+  plan: string; // plan.json
 };
 
-// 現在の Harness 本体と PROJECT.md の fingerprint を記録する
+// 現在の Harness 本体・PROJECT.md・plan の fingerprint を記録する
 export async function captureBaseline(root: string): Promise<IntegrityBaseline> {
-  return { harness: await fingerprintDir(harnessRoot()), spec: sha256(await readFile(projectPaths(root).spec)) };
+  const paths = projectPaths(root);
+  return { harness: await fingerprintDir(harnessRoot()), spec: sha256(await readFile(paths.spec)), plan: sha256(await readFile(paths.plan)) };
 }
 
-// Harness 本体または PROJECT.md が開始時から変更されていれば FatalError を投げる。PROJECT.md の変更は harness chat でのみ許可する (§8, §20, §23)
+// 固定対象が開始時から変更されていれば FatalError を投げる (§4.2, §23)
 export async function assertIntegrity(root: string, baseline: IntegrityBaseline): Promise<void> {
-  if (await fingerprintDir(harnessRoot()) !== baseline.harness) throw new FatalError('Harness files were modified during the run');
-  if (sha256(await readFile(projectPaths(root).spec)) !== baseline.spec) throw new FatalError('PROJECT.md was modified during development; product changes are applied with harness chat');
+  const current = await captureBaseline(root);
+  if (current.harness !== baseline.harness) throw new FatalError('Harness files were modified during harness develop');
+  if (current.spec !== baseline.spec) throw new FatalError('PROJECT.md was modified during harness develop; change the specification with harness chat');
+  if (current.plan !== baseline.plan) throw new FatalError('plan.json was modified during harness develop; the plan is fixed until development ends');
 }
 
-// ディレクトリ配下のファイルのパスと内容から fingerprint を作る。依存パッケージと Git 管理情報を除いて計算する
-async function fingerprintDir(dir: string): Promise<string> {
+// ディレクトリ配下のファイルのパスと内容から fingerprint を作る。node_modules と .git は除く
+export async function fingerprintDir(dir: string): Promise<string> {
   const entries: string[] = [];
   const walk = async (current: string): Promise<void> => {
     for (const entry of (await readdir(current, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (['node_modules', '.git'].includes(entry.name)) continue;
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) await walk(full);
       else if (entry.isFile()) entries.push(`${path.relative(dir, full)}:${sha256(await readFile(full))}`);

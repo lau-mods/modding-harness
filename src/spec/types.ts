@@ -1,52 +1,39 @@
-// PROJECT.md の Status (§4)
+// PROJECT.md の Status。draft は仕様作成中、active は開発対象として確定 (§5.2)
 export type ProjectStatus = 'draft' | 'active';
 
-// Feature / Requirement / AC 個別の Status。省略時は active (§5)
-export type ItemStatus = 'active' | 'retired';
-
-// 対象プラットフォームの version (§3)
+// 対象プラットフォームの version (§5.2)
 export type Platform = { minecraft: string; neoforge: string; java: string };
 
-// Acceptance Criterion。Preconditions / Action / Expected Result を必須とする (§2, §3)
+// Acceptance Criterion。Preconditions / Action / Expected Result を持つ (§5.4)
 export type AcceptanceCriterion = {
   id: string; // AC-F001-001
-  featureId: string;
+  featureId: string; // F-001
   title: string;
-  status: ItemStatus;
   preconditions: string;
   action: string;
   expectedResult: string;
   markdown: string; // 見出しを含む原文。agent への入力に使う
 };
 
-// Feature が満たす製品要求 (§2)
-export type Requirement = { id: string; featureId: string; title: string; status: ItemStatus; body: string };
-
-// 一まとまりの機能と、配下の Requirement / AC (§2)
+// 利用者から見た一つの機能と、所属する AC (§5.3)
 export type Feature = {
   id: string; // F-001
   title: string;
-  status: ItemStatus;
   description: string;
-  requirements: Requirement[];
   criteria: AcceptanceCriterion[];
+  markdown: string; // 見出しを含む原文
 };
 
-// Cross-cutting Requirements の固定見出し (§3)
-export type CrossCuttingTopic = 'Persistence' | 'Multiplayer' | 'Visual' | 'Performance' | 'Compatibility';
-
-// PROJECT.md を構造化したもの。未記入の項目は空文字列
+// PROJECT.md を構造化したもの。未記入の項目は空文字列 (§5.2)
 export type ProjectSpec = {
-  text: string;
-  hash: string;
+  text: string; // PROJECT.md 全文
   status: ProjectStatus;
   projectId: string;
   modId: string;
-  packagePath: string;
   platform: Platform;
   purpose: string;
   features: Feature[];
-  crossCutting: Record<CrossCuttingTopic, string>;
+  globalRequirements: string; // 各 Feature の完成条件に含める共通要求 (§5.5)
   constraints: string;
   openQuestions: string;
 };

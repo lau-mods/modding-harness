@@ -1,58 +1,97 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import type { E2EMapping } from '../acceptance/acceptance.js';
 import type { RuntimeConfig } from '../config/config.js';
-import { ExecutionFailure, FatalError } from '../core/errors.js';
-import { readJson } from '../core/fs.js';
-import type { ProcessResult, Runner } from '../core/process.js';
+import { ExecutionFailure } from '../core/errors.js';
+import { exists, readJson } from '../core/fs.js';
+import { harnessRoot } from '../core/paths.js';
+import type { Runner } from '../core/process.js';
 import { tail } from '../core/process.js';
-import type { ScenarioDefinition } from './manifest.js';
-import { scenarioEnv } from './runtime.js';
+import { pilotEnv } from './runtime.js';
 import type { RuntimeSession } from './runtime.js';
 
-// scenario 内の 1 観測 (§13)
-export type Assertion = { name: string; expected: unknown; actual: unknown; passed: boolean };
+// 実行する scenario。同じ scenario ファイルに対応付けた AC をまとめる。id は scenario ファイルのパス (§16.3)
+export type ScenarioDefinition = { id: string; file: string; acIds: string[] };
 
-// scenario process が出力する machine-readable な結果 (§13)
-export type ScenarioResult = { scenarioId: string; passed: boolean; assertions: Assertion[]; screenshots: string[] };
+// scenario が撮影した screenshot と対象 AC。file は絶対パス (§16.2 Screenshot と AC の対応付け)
+export type Screenshot = { acId: string; file: string; label: string };
 
-// scenario 1 件の実行記録。結果ファイル・ログ・screenshot の保存先を含む
-export type ScenarioRun = { scenario: ScenarioDefinition; result: ScenarioResult; resultFile: string; logDir: string; screenshotDir: string };
+// scenario 1 件の実行結果。success はシーン準備と screenshot 取得の完了を表す (§16.4)
+export type ScenarioResult = {
+  scenarioId: string;
+  acIds: string[];
+  success: boolean;
+  screenshots: Screenshot[];
+  error: string | null;
+  logDir: string; // 実行 log の保存先
+};
 
 const SCENARIO_TIMEOUT_MS = 30 * 60 * 1000;
 
-// scenario を通常の実行可能プログラムとして起動し、結果 JSON を読む。process 失敗・結果欠落は ExecutionFailure (§12, §17)
-export async function runScenario(root: string, config: RuntimeConfig, scenario: ScenarioDefinition, session: RuntimeSession, logDir: string, runner: Runner): Promise<ScenarioRun> {
+// 対応表の E2E を scenario ファイル単位にまとめる
+export function groupScenarios(mappings: E2EMapping[]): ScenarioDefinition[] {
+  const scenarios = new Map<string, ScenarioDefinition>();
+  for (const mapping of mappings) {
+    const scenario = scenarios.get(mapping.scenario) ?? { id: mapping.scenario, file: mapping.scenario, acIds: [] };
+    if (!scenario.acIds.includes(mapping.acId)) scenario.acIds.push(mapping.acId);
+    scenarios.set(mapping.scenario, scenario);
+  }
+  return [...scenarios.values()];
+}
+
+// scenario を node で実行し、結果ファイルを読む。process 失敗・結果欠落・screenshot 欠落は success: false の結果にする (§16.4)
+export async function runScenario(root: string, config: RuntimeConfig, scenario: ScenarioDefinition, session: RuntimeSession, logDir: string, runner: Runner): Promise<ScenarioResult> {
   const resultFile = path.join(logDir, 'result.json');
   const screenshotDir = path.join(logDir, 'screenshots');
   await mkdir(screenshotDir, { recursive: true });
-  const [command, ...args] = scenario.command;
-  let execution: ProcessResult;
+  const failed = (error: string): ScenarioResult => ({ scenarioId: scenario.id, acIds: scenario.acIds, success: false, screenshots: [], error, logDir });
   try {
-    execution = await runner(command!, args, { cwd: root, env: scenarioEnv(root, config, session, scenario, resultFile, screenshotDir), logDir, timeoutMs: SCENARIO_TIMEOUT_MS });
+    const execution = await runner(process.execPath, [path.resolve(root, scenario.file)], {
+      cwd: root, env: scenarioEnv(root, config, session, scenario, resultFile, screenshotDir), logDir, timeoutMs: SCENARIO_TIMEOUT_MS,
+    });
+    if (execution.code !== 0) return failed(`Scenario exited with ${execution.code}: ${tail(execution.stderr + execution.stdout, 2000)}`);
+    const result = parseScenarioResult(await readJson(resultFile), scenario, screenshotDir, logDir);
+    if (result.error) return { ...result, success: false };
+    for (const shot of result.screenshots) {
+      if (!await exists(shot.file)) return { ...result, success: false, error: `Screenshot was not saved: ${shot.file}` };
+    }
+    const missing = scenario.acIds.filter(acId => !result.screenshots.some(shot => shot.acId === acId));
+    if (missing.length) return { ...result, success: false, error: `No screenshot was taken for ${missing.join(', ')}` };
+    return result;
   } catch (error) {
-    if (error instanceof FatalError) throw new ExecutionFailure(`E2E scenario ${scenario.id} could not start: ${error.message}`);
+    if (error instanceof ExecutionFailure || error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === 'ENOENT') return failed((error as Error).message);
     throw error;
   }
-  if (execution.code !== 0) throw new ExecutionFailure(`E2E scenario ${scenario.id} exited with ${execution.code}: ${tail(execution.stderr + execution.stdout, 2000)}`);
-  let value: unknown;
-  try { value = await readJson(resultFile); }
-  catch (error) { throw new ExecutionFailure(`E2E scenario ${scenario.id} wrote no readable result: ${(error as Error).message}`); }
-  return { scenario, result: parseScenarioResult(value, scenario.id), resultFile, logDir, screenshotDir };
 }
 
-// 結果 JSON を検証して ScenarioResult にする。scenarioId の不一致も検出する
-export function parseScenarioResult(value: unknown, scenarioId: string): ScenarioResult {
-  const result = value as Partial<ScenarioResult> | null;
-  const valid = result !== null && typeof result === 'object'
-    && result.scenarioId === scenarioId
-    && typeof result.passed === 'boolean'
-    && Array.isArray(result.assertions) && result.assertions.every(item => typeof item?.name === 'string' && typeof item.passed === 'boolean')
-    && Array.isArray(result.screenshots) && result.screenshots.every(item => typeof item === 'string');
-  if (!valid) throw new ExecutionFailure(`E2E scenario ${scenarioId} wrote a result that does not match the scenario result format`);
-  return { scenarioId, passed: result.passed!, assertions: result.assertions!, screenshots: result.screenshots! };
+// scenario process に渡す環境変数 (MC Pilot command・client 名・結果と screenshot の出力先など) を組み立てる (§16.2)
+export function scenarioEnv(root: string, config: RuntimeConfig, session: RuntimeSession, scenario: ScenarioDefinition, resultFile: string, screenshotDir: string): NodeJS.ProcessEnv {
+  return {
+    ...pilotEnv(root),
+    HARNESS_MCT: config.command,
+    HARNESS_E2E_LIB: path.join(harnessRoot(), 'e2e', 'lib.mjs'),
+    HARNESS_CLIENTS: JSON.stringify(session.clients),
+    HARNESS_RESULT_FILE: resultFile,
+    HARNESS_SCREENSHOT_DIR: screenshotDir,
+    HARNESS_SCENARIO_ID: scenario.id,
+    HARNESS_AC_IDS: JSON.stringify(scenario.acIds),
+  };
 }
 
-// assertion の観測結果から scenario の成否を判定する。1 件以上の assertion がすべて成功したとき成功 (§13)
-export function judge(result: ScenarioResult): boolean {
-  return result.assertions.length > 0 && result.assertions.every(assertion => assertion.passed);
+// scenario が書いた結果 JSON を検証して ScenarioResult にする。screenshot のパスは screenshotDir 基準で解決する。形式違反は ExecutionFailure
+export function parseScenarioResult(value: unknown, scenario: ScenarioDefinition, screenshotDir: string, logDir: string): ScenarioResult {
+  const result = value as { scenarioId?: unknown; screenshots?: unknown; error?: unknown } | null;
+  const shots = result?.screenshots;
+  const valid = result?.scenarioId === scenario.id
+    && (result.error === null || typeof result.error === 'string')
+    && Array.isArray(shots) && shots.every(shot => typeof shot?.acId === 'string' && typeof shot.file === 'string' && typeof shot.label === 'string');
+  if (!valid) throw new ExecutionFailure(`Scenario ${scenario.id} wrote a result that does not match the scenario result format`);
+  return {
+    scenarioId: scenario.id,
+    acIds: scenario.acIds,
+    success: true,
+    screenshots: (shots as Screenshot[]).map(shot => ({ ...shot, file: path.resolve(screenshotDir, shot.file) })),
+    error: result.error as string | null,
+    logDir,
+  };
 }

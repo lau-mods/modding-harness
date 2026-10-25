@@ -1,91 +1,45 @@
 import path from 'node:path';
-import { findModJar } from '../build/gradle.js';
-import type { HarnessConfig } from '../config/config.js';
-import { exists } from '../core/fs.js';
+import type { E2EMapping } from '../acceptance/acceptance.js';
+import type { RuntimeConfig } from '../config/config.js';
+import { ExecutionFailure } from '../core/errors.js';
 import type { Runner } from '../core/process.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
-import { loadManifest, selectScenarios, uncoveredCriteria } from './manifest.js';
 import { collectLogs, deployMod, startRuntime, stopRuntime } from './runtime.js';
-import type { RuntimeSession } from './runtime.js';
-import { judge, runScenario } from './scenario.js';
-import type { Assertion, ScenarioResult, ScenarioRun } from './scenario.js';
+import { groupScenarios, runScenario } from './scenario.js';
+import type { ScenarioResult } from './scenario.js';
 
-// milestone の E2E 実行結果のまとめ
-export type E2ERunSummary = {
-  passed: boolean;
-  runs: ScenarioRun[];
-  uncovered: string[]; // scenario が存在しない AC ID
-  problems: string[]; // manifest や結果の不備
-  screenshots: string[];
-  logFiles: string[];
-};
+// E2E 工程の実行結果。表示内容の合否は Claude の E2E レビューで決める (§16.4)
+export type E2ERunSummary = { scenarios: ScenarioResult[]; logs: string[]; logDir: string };
 
-// assertion failure 時に Codex へ渡す情報 (§19)
-export type E2EFailureReport = {
-  criteria: { id: string; expectedResult: string }[];
-  failures: { scenarioId: string; assertion: Assertion }[];
-  uncovered: string[];
-  problems: string[];
-  logs: string[];
-  screenshots: string[];
-  results: ScenarioResult[];
-};
-
-// scenario の進行を state へ反映するためのフック (§24 Current E2E scenario)
-export type E2EHooks = { onScenario?: (scenarioId: string) => Promise<void> };
-
-// mod を配置して server と client を起動し、milestone の AC に対応する scenario のうち成功済み (passed) 以外を順に実行して停止する (§12, §14)
-export async function runE2E(root: string, config: HarnessConfig, criteria: AcceptanceCriterion[], passed: string[], logDir: string, runner: Runner, hooks?: E2EHooks): Promise<E2ERunSummary> {
-  const acIds = criteria.map(criterion => criterion.id);
-  const failed = (uncovered: string[], problems: string[]): E2ERunSummary => ({ passed: false, runs: [], uncovered, problems, screenshots: [], logFiles: [] });
-  let manifest;
-  try { manifest = await loadManifest(root); }
-  catch (error) { return failed(acIds, [(error as Error).message]); }
-  const uncovered = uncoveredCriteria(manifest, acIds);
-  if (uncovered.length) return failed(uncovered, []);
-  const scenarios = selectScenarios(manifest, acIds).filter(scenario => !passed.includes(scenario.id));
-  if (!scenarios.length) return { passed: true, runs: [], uncovered: [], problems: [], screenshots: [], logFiles: [] };
-
-  await deployMod(root, config.runtime, await findModJar(root));
-  const runs: ScenarioRun[] = [];
-  let session: RuntimeSession | null = null;
-  let logFiles: string[] = [];
+// Mod 配置 → server / client 起動 → 各 scenario 実行 → 結果保存 → 停止 の lifecycle で E2E を実行する。起動失敗は log を添えた ExecutionFailure (§16.2)
+export async function runE2E(root: string, config: RuntimeConfig, mappings: E2EMapping[], modJar: string, logDir: string, runner: Runner): Promise<E2ERunSummary> {
+  await deployMod(root, config, modJar);
+  const runtimeLogDir = path.join(logDir, 'runtime');
+  const scenarios: ScenarioResult[] = [];
+  let failure: ExecutionFailure | null = null;
   try {
-    session = await startRuntime(root, config.runtime, path.join(logDir, 'runtime'), runner);
-    for (const scenario of scenarios) {
-      await hooks?.onScenario?.(scenario.id);
-      runs.push(await runScenario(root, config.runtime, scenario, session, path.join(logDir, 'scenarios', scenario.id), runner));
+    const session = await startRuntime(root, config, runtimeLogDir, runner);
+    for (const scenario of groupScenarios(mappings)) {
+      scenarios.push(await runScenario(root, config, scenario, session, path.join(logDir, 'scenarios', scenario.id.replace(/[^\w.-]+/g, '-')), runner));
     }
+  } catch (error) {
+    if (!(error instanceof ExecutionFailure)) throw error;
+    failure = error;
   } finally {
-    await stopRuntime(root, config.runtime, runner);
-    if (session) logFiles = await collectLogs(root, session);
+    await stopRuntime(root, config, runner);
   }
-
-  const screenshots: string[] = [];
-  for (const run of runs) {
-    for (const name of run.result.screenshots) {
-      const file = path.resolve(run.screenshotDir, name);
-      if (await exists(file)) screenshots.push(file);
-    }
-  }
-  const problems = runs.filter(run => !run.result.assertions.length).map(run => `Scenario ${run.scenario.id} reported no assertions`);
-  return { passed: runs.every(run => judge(run.result)), runs, uncovered: [], problems, screenshots, logFiles };
+  const logs = await collectLogs(root, config, runtimeLogDir);
+  if (failure) throw new ExecutionFailure(failure.message, failure.details, [...new Set([...failure.logs, ...logs])]);
+  return { scenarios, logs, logDir };
 }
 
-// 失敗した E2E 結果から Codex 向けの報告を作る (§19)
-export function failureReport(summary: E2ERunSummary, criteria: AcceptanceCriterion[]): E2EFailureReport {
-  return {
-    criteria: criteria.map(criterion => ({ id: criterion.id, expectedResult: criterion.expectedResult })),
-    failures: summary.runs.flatMap(run => run.result.assertions.filter(assertion => !assertion.passed).map(assertion => ({ scenarioId: run.scenario.id, assertion }))),
-    uncovered: summary.uncovered,
-    problems: summary.problems,
-    logs: summary.logFiles,
-    screenshots: summary.screenshots,
-    results: summary.runs.map(run => run.result),
-  };
-}
-
-// 画面確認が必要か (screenshot が取得されているか) を判定する (§15)
-export function needsVisualReview(summary: E2ERunSummary): boolean {
-  return summary.screenshots.length > 0;
+// E2E 実行失敗の対象 AC・エラー・log を Codex 向けの ExecutionFailure にまとめる (§19.2)
+export function e2eFailure(summary: E2ERunSummary, criteria: AcceptanceCriterion[]): ExecutionFailure {
+  const failed = summary.scenarios.filter(scenario => !scenario.success);
+  const details = failed.map(scenario => [
+    `${scenario.scenarioId}: ${scenario.error}`,
+    ...scenario.acIds.map(acId => `${acId} Expected Result: ${criteria.find(criterion => criterion.id === acId)?.expectedResult ?? '(unknown)'}`),
+  ].join('\n'));
+  const logs = [...summary.logs, ...failed.flatMap(scenario => [path.join(scenario.logDir, 'stdout.log'), path.join(scenario.logDir, 'stderr.log')])];
+  return new ExecutionFailure(`${failed.length} E2E scenario(s) failed`, details.join('\n\n'), logs, failed.flatMap(scenario => scenario.screenshots.map(shot => shot.file)));
 }

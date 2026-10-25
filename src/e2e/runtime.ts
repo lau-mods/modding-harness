@@ -1,47 +1,52 @@
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { copyFile, mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import type { RuntimeConfig } from '../config/config.js';
+import type { RuntimeConfig, ServerConfig } from '../config/config.js';
+import { checkRuntimeConfig } from '../config/config.js';
 import { ExecutionFailure, FatalError } from '../core/errors.js';
 import { exists, readJson, writeAtomic } from '../core/fs.js';
-import { harnessRoot, projectPaths } from '../core/paths.js';
+import { projectPaths } from '../core/paths.js';
 import type { Runner } from '../core/process.js';
 import { tail } from '../core/process.js';
 
-// Harness が起動した Minecraft 実機環境 1 回分 (§12, §27)
+// Harness が起動した Minecraft runtime 1 回分 (§16.2)
 export type RuntimeSession = { server: string; clients: string[]; world: string; logDir: string; startedAt: string };
 
-// 起動中の server process の記録。scenario からの再起動でも同じ log file を使う
-type ServerProcess = { pid: number | null; logFile: string };
+// 起動中の server process の記録。Harness の再起動後も残存 process を停止できるよう runtime/ に保存する
+type ServerProcess = { pid: number | null };
 
 const SERVER_READY_TIMEOUT_MS = 10 * 60 * 1000;
 const SERVER_STOP_TIMEOUT_MS = 2 * 60 * 1000;
 const MCT_TIMEOUT_MS = 5 * 60 * 1000;
 const CLIENT_READY_TIMEOUT_SECONDS = 180;
 
-// MC Pilot に渡す環境変数。MC Pilot の home と cache は project の .harness-state/runtime に置く
+// MC Pilot に渡す環境変数。MC Pilot の home と cache は .harness-state/runtime に置く
 export function pilotEnv(root: string): NodeJS.ProcessEnv {
   const runtime = projectPaths(root).runtime;
   return { MCT_HOME: path.join(runtime, 'mct-home'), MCT_CACHE_DIR: path.join(runtime, 'mct-cache'), MCT_SKILL_TARGETS: 'none' };
 }
 
-// MC Pilot CLI を呼び出して JSON envelope の data を返す。失敗は ExecutionFailure (§17)
+// MC Pilot CLI を呼び出して JSON envelope の data を返す。失敗は ExecutionFailure (§19.1)
 export async function mcPilot(root: string, config: RuntimeConfig, args: string[], runner: Runner): Promise<unknown> {
   const result = await runner(config.command, args, { cwd: root, env: pilotEnv(root), timeoutMs: MCT_TIMEOUT_MS });
   let envelope: { success?: boolean; data?: unknown };
   try { envelope = JSON.parse(result.stdout) as typeof envelope; }
   catch { envelope = {}; }
-  if (result.code !== 0 || envelope.success !== true) throw new ExecutionFailure(`MC Pilot ${args.join(' ')} failed: ${tail(result.stderr + result.stdout, 2000)}`);
+  if (result.code !== 0 || envelope.success !== true) throw new ExecutionFailure(`MC Pilot ${args.join(' ')} failed`, tail(result.stderr + result.stdout, 2000));
   return envelope.data;
 }
 
-// build した mod jar を server と全 client の mods へ配置し、前回配置した jar を置き換える (§27)
+// Mod jar を server・全 client・追加の配置先へ配置し、前回配置した jar を置き換える (§16.2 Mod Deploy)
 export async function deployMod(root: string, config: RuntimeConfig, modJar: string): Promise<void> {
-  const record = path.join(projectPaths(root).runtime, 'deployed.json');
-  if (await exists(record)) for (const file of await readJson(record) as string[]) await rm(file, { force: true });
-  const dirs = [path.join(root, config.server.directory, 'mods'), ...config.clients.map(name => clientDir(root, name, 'mods'))];
+  await removeDeployed(root);
+  const dirs = [
+    ...config.server ? [path.join(serverDir(root, config.server), 'mods')] : [],
+    ...config.clients.map(name => clientDir(root, name, 'mods')),
+    ...config.deploy.map(dir => path.resolve(root, dir)),
+  ];
   const deployed: string[] = [];
   for (const dir of dirs) {
     await mkdir(dir, { recursive: true });
@@ -49,73 +54,58 @@ export async function deployMod(root: string, config: RuntimeConfig, modJar: str
     await copyFile(modJar, target);
     deployed.push(target);
   }
-  await writeAtomic(record, deployed);
+  await writeAtomic(deployedRecord(root), deployed);
 }
 
-// 設定された client の存在を確認し、server を起動して全 client を world に参加させる。起動失敗・crash は ExecutionFailure (§17, §27, §28)
-export async function startRuntime(root: string, config: RuntimeConfig, logDir: string, runner: Runner): Promise<RuntimeSession> {
-  const listed = await mcPilot(root, config, ['client', 'list'], runner) as { clients?: { name: string }[] };
-  const missing = config.clients.filter(name => !listed?.clients?.some(client => client.name === name));
-  if (missing.length) throw new FatalError(`MC Pilot clients are missing: ${missing.join(', ')}; create them with MCT_HOME=${pilotEnv(root).MCT_HOME}`);
-  await stopClients(root, config, runner);
-  await mkdir(logDir, { recursive: true });
-  await startServer(root, config, path.join(logDir, 'server.log'));
-  await launchClients(root, config, runner);
-  return { server: config.server.address, clients: config.clients, world: config.world, logDir, startedAt: new Date().toISOString() };
-}
-
-// client と server を停止する。停止は最善努力で行い、次回の起動前にも残存 process を停止する
-export async function stopRuntime(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
-  await stopClients(root, config, runner);
-  await stopServer(root);
-}
-
-// 設定された全 client を、client ごとのアカウント名と空き WebSocket port で起動し、server に接続して world に参加するまで待つ (§27)
-export async function launchClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
-  for (const name of config.clients) {
-    const account = name.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 16);
-    await mcPilot(root, config, ['client', 'launch', name, '--server', config.server.address, '--ws-port', String(await freePort()), '--account', account, '--force'], runner);
-    const ready = await mcPilot(root, config, ['client', 'wait-ready', name, '--timeout', String(CLIENT_READY_TIMEOUT_SECONDS)], runner) as { inWorld?: boolean } | null;
-    if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`);
-  }
-}
-
-// 設定された全 client を MC Pilot で停止する。停止済みの client はそのままにする
-export async function stopClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
-  for (const name of config.clients) await mcPilot(root, config, ['client', 'stop', name], runner).catch(() => undefined);
-}
-
-// 固定テスト world と server port を server.properties に設定し、server を起動して "Done (" の出力まで待つ (§28)
-export async function startServer(root: string, config: RuntimeConfig, logFile?: string): Promise<void> {
-  const dir = path.join(root, config.server.directory);
+// 検証用 world を作り直して NeoForge server を起動し、起動完了まで待つ。crash・Mod load failure は ExecutionFailure (§16.2, §19.1)
+export async function startServer(root: string, config: RuntimeConfig, logDir: string): Promise<void> {
+  const server = requireServer(config);
+  const dir = serverDir(root, server);
   if (!/^eula=true\s*$/m.test(await readFile(path.join(dir, 'eula.txt'), 'utf8').catch(() => ''))) {
-    throw new FatalError(`Prepare the NeoForge server in ${config.server.directory} and accept the Minecraft EULA in eula.txt`);
+    throw new FatalError(`Install the NeoForge server in ${server.directory} and accept the Minecraft EULA in eula.txt`);
   }
   await stopServer(root);
-  await setProperties(path.join(dir, 'server.properties'), { 'level-name': config.world, 'server-port': config.server.address.split(':').at(-1)!, 'online-mode': 'false' });
-  const previous = await readServerProcess(root);
-  const log = logFile ?? previous!.logFile;
-  await mkdir(path.dirname(log), { recursive: true });
-  const offset = await stat(log).then(info => info.size, () => 0);
-  const handle = await open(log, 'a');
-  const [command, ...args] = config.server.command;
+  await rm(path.join(dir, server.world), { recursive: true, force: true });
+  await setProperties(path.join(dir, 'server.properties'), {
+    'level-name': server.world,
+    'level-type': 'minecraft\\:flat',
+    'server-port': server.address.split(':').at(-1)!,
+    'online-mode': 'false',
+    'spawn-protection': '0',
+    'spawn-monsters': 'false',
+    'generate-structures': 'false',
+  });
+  // client は offline account で参加するため、その UUID で operator 権限を与えて scenario から command を実行できるようにする
+  await writeFile(path.join(dir, 'ops.json'), JSON.stringify(config.clients.map(name => {
+    const account = accountName(name);
+    return { uuid: offlineUuid(account), name: account, level: 4, bypassesPlayerLimit: false };
+  }), null, 2));
+
+  await mkdir(logDir, { recursive: true });
+  const logFile = path.join(logDir, 'server.log');
+  const handle = await open(logFile, 'a');
+  const [command, ...args] = server.command;
   const child = spawn(command!, args, { cwd: dir, detached: true, stdio: ['ignore', handle.fd, handle.fd] });
   await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); })
     .catch((error: Error) => { throw new FatalError(`Cannot start the NeoForge server: ${error.message}`); })
     .finally(() => handle.close());
   child.unref();
-  await writeServerProcess(root, { pid: child.pid!, logFile: log });
+  await writeServerProcess(root, { pid: child.pid! });
+
   const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
   for (;;) {
-    const output = (await readFile(log)).subarray(offset).toString('utf8');
+    const output = await readFile(logFile, 'utf8');
     if (/Done \([\d.,]+s\)!/.test(output)) return;
-    if (!alive(child.pid!)) throw new ExecutionFailure(`NeoForge server exited during startup: ${tail(output, 2000)}`);
-    if (Date.now() > deadline) { await stopServer(root); throw new ExecutionFailure('NeoForge server did not become ready in time'); }
+    if (!alive(child.pid!)) throw new ExecutionFailure('NeoForge server exited during startup', tail(output, 4000), [logFile]);
+    if (Date.now() > deadline) {
+      await stopServer(root);
+      throw new ExecutionFailure('NeoForge server did not become ready in time', tail(output, 4000), [logFile]);
+    }
     await sleep(500);
   }
 }
 
-// server の process group に SIGTERM を送り、world の保存と終了を待つ。時間内に終わらなければ SIGKILL で終了させる
+// server を停止し、world の保存と終了を待つ。時間内に終わらなければ強制終了する (§16.2 Server Stop)
 export async function stopServer(root: string): Promise<void> {
   const server = await readServerProcess(root);
   if (!server?.pid) return;
@@ -125,42 +115,109 @@ export async function stopServer(root: string): Promise<void> {
     while (alive(server.pid) && Date.now() < deadline) await sleep(500);
     if (alive(server.pid)) signal(server.pid, 'SIGKILL');
   }
-  await writeServerProcess(root, { pid: null, logFile: server.logFile });
+  await writeServerProcess(root, { pid: null });
 }
 
-// server / client の log を session の logDir へ集め、保存先パスを返す (§29)
-export async function collectLogs(root: string, session: RuntimeSession): Promise<string[]> {
-  const files: string[] = [];
-  const serverLog = (await readServerProcess(root))?.logFile;
-  if (serverLog && await exists(serverLog)) files.push(serverLog);
-  for (const name of session.clients) {
-    const source = clientDir(root, name, 'logs', 'latest.log');
+// 設定された全 client を MC Pilot で起動し、server の world に参加するまで待つ (§16.2 Client Start, World Load)
+export async function startClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
+  const server = requireServer(config);
+  for (const name of config.clients) {
+    await mcPilot(root, config, ['client', 'launch', name, '--server', server.address, '--ws-port', String(await freePort()), '--account', accountName(name), '--force'], runner);
+    const ready = await mcPilot(root, config, ['client', 'wait-ready', name, '--timeout', String(CLIENT_READY_TIMEOUT_SECONDS)], runner) as { inWorld?: boolean } | null;
+    if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`);
+  }
+}
+
+// 設定された全 client を MC Pilot で停止する。停止済みの client はそのままにする (§16.2 Client Stop)
+export async function stopClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
+  for (const name of config.clients) await mcPilot(root, config, ['client', 'stop', name], runner).catch(() => undefined);
+}
+
+// server と全 client を起動して RuntimeSession を返す。runtime 設定の欠落と未作成の client は FatalError (§16.2, §23)
+export async function startRuntime(root: string, config: RuntimeConfig, logDir: string, runner: Runner): Promise<RuntimeSession> {
+  const problems = checkRuntimeConfig(config);
+  if (problems.length) throw new FatalError(`The Minecraft runtime is not configured:\n- ${problems.join('\n- ')}`);
+  const listed = await mcPilot(root, config, ['client', 'list'], runner) as { clients?: { name: string }[] } | null;
+  const missing = config.clients.filter(name => !listed?.clients?.some(client => client.name === name));
+  if (missing.length) throw new FatalError(`MC Pilot clients are missing: ${missing.join(', ')}; create them with MCT_HOME=${pilotEnv(root).MCT_HOME}`);
+  await stopClients(root, config, runner);
+  await startServer(root, config, logDir);
+  await startClients(root, config, runner);
+  const server = requireServer(config);
+  return { server: server.address, clients: config.clients, world: server.world, logDir, startedAt: new Date().toISOString() };
+}
+
+// client と server を停止する。前回の残存 process の停止にも使う (§16.2, §20.3)
+export async function stopRuntime(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
+  await stopClients(root, config, runner);
+  await stopServer(root);
+}
+
+// server / client / 設定された追加 log を runtime の logDir へ集め、存在する log のパスを返す (§16.4)
+export async function collectLogs(root: string, config: RuntimeConfig, logDir: string): Promise<string[]> {
+  const sources: [string, string][] = [
+    ...config.clients.map((name): [string, string] => [clientDir(root, name, 'logs', 'latest.log'), `client-${name}.log`]),
+    ...config.logs.map((file): [string, string] => [path.resolve(root, file), path.basename(file)]),
+  ];
+  const serverLog = path.join(logDir, 'server.log');
+  const files = await exists(serverLog) ? [serverLog] : [];
+  for (const [source, name] of sources) {
     if (!await exists(source)) continue;
-    const target = path.join(session.logDir, `client-${name}.log`);
+    const target = path.join(logDir, name);
+    await mkdir(logDir, { recursive: true });
     await copyFile(source, target);
     files.push(target);
   }
   return files;
 }
 
-// scenario process に渡す環境変数 (MC Pilot command・instance 名・world・結果出力先など) を組み立てる
-export function scenarioEnv(root: string, config: RuntimeConfig, session: RuntimeSession, scenario: { id: string; acIds: string[] }, resultFile: string, screenshotDir: string): NodeJS.ProcessEnv {
-  return {
-    ...pilotEnv(root),
-    HARNESS_MCT: config.command,
-    HARNESS_E2E_LIB: path.join(harnessRoot(), 'e2e', 'lib.mjs'),
-    HARNESS_CLIENTS: JSON.stringify(session.clients),
-    HARNESS_SERVER_ADDRESS: session.server,
-    HARNESS_WORLD: session.world,
-    HARNESS_SERVER_CONTROL: JSON.stringify([process.execPath, path.join(harnessRoot(), 'dist', 'cli', 'main.js'), '--project', root, 'server']),
-    HARNESS_RESULT_FILE: resultFile,
-    HARNESS_SCREENSHOT_DIR: screenshotDir,
-    HARNESS_SCENARIO_ID: scenario.id,
-    HARNESS_AC_IDS: JSON.stringify(scenario.acIds),
-  };
+// 一時的な runtime 状態 (server process・配置済み jar・検証用 world) を破棄する (§20.3)
+export async function resetRuntime(root: string, config: RuntimeConfig): Promise<void> {
+  await stopServer(root);
+  await removeDeployed(root);
+  if (config.server) await rm(path.join(serverDir(root, config.server), config.server.world), { recursive: true, force: true });
 }
 
-// OS が割り当てた空き TCP port を返す。直前に使った port との衝突を避ける
+function requireServer(config: RuntimeConfig): ServerConfig {
+  if (!config.server) throw new FatalError('runtime.server must configure the NeoForge dedicated server');
+  return config.server;
+}
+
+function serverDir(root: string, server: ServerConfig): string {
+  return path.resolve(root, server.directory);
+}
+
+// MC Pilot client instance 内のパス
+function clientDir(root: string, name: string, ...parts: string[]): string {
+  return path.join(pilotEnv(root).MCT_HOME!, 'clients', name, 'minecraft', ...parts);
+}
+
+// client の offline account 名。Minecraft の player 名の制約 (英数字と _、16 文字以内) に合わせる
+function accountName(client: string): string {
+  return client.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 16);
+}
+
+// offline-mode の server が player に割り当てる UUID (OfflinePlayer:<name> の UUID v3)
+function offlineUuid(name: string): string {
+  const bytes = createHash('md5').update(`OfflinePlayer:${name}`).digest();
+  bytes[6] = (bytes[6]! & 0x0f) | 0x30;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function deployedRecord(root: string): string {
+  return path.join(projectPaths(root).runtime, 'deployed.json');
+}
+
+async function removeDeployed(root: string): Promise<void> {
+  const record = deployedRecord(root);
+  if (!await exists(record)) return;
+  for (const file of await readJson(record) as string[]) await rm(file, { force: true });
+  await rm(record, { force: true });
+}
+
+// OS が割り当てた空き TCP port を返す
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -170,11 +227,6 @@ function freePort(): Promise<number> {
       server.close(error => error ? reject(error) : resolve(port));
     });
   });
-}
-
-// MC Pilot client instance 内のパス
-function clientDir(root: string, name: string, ...parts: string[]): string {
-  return path.join(pilotEnv(root).MCT_HOME!, 'clients', name, 'minecraft', ...parts);
 }
 
 async function setProperties(file: string, values: Record<string, string>): Promise<void> {

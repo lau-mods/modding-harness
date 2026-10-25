@@ -7,7 +7,7 @@ export async function exists(file: string): Promise<boolean> {
   try { await access(file); return true; } catch { return false; }
 }
 
-// JSON ファイルを読み込む。読めない場合の分類 (fatal か否か) は呼び出し側で行う
+// JSON ファイルを読み込む。読めない場合の分類は呼び出し側で行う
 export async function readJson(file: string): Promise<unknown> {
   return JSON.parse(await readFile(file, 'utf8')) as unknown;
 }
