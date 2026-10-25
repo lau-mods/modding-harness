@@ -6,9 +6,6 @@
   "engines": {
     "node": ">=20"
   },
-  "bin": {
-    "harness": "dist/cli/main.js"
-  },
   "files": [
     "dist",
     "e2e",
@@ -16,7 +13,7 @@
     "docs"
   ],
   "scripts": {
-    "build": "tsc && chmod +x dist/cli/main.js",
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

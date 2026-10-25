@@ -36,7 +36,7 @@ export async function collectStatus(root: string): Promise<StatusReport> {
   const lastCompleted = completed.at(-1);
   return {
     project: spec ? spec.projectId || spec.modId || '-' : '-',
-    currentCommit: await head(root),
+    currentCommit: await head(root).catch(() => '-'), // 最初の commit 前は HEAD が無い
     currentMilestone: current?.id ?? null,
     currentPhase: progress.phase,
     completedMilestones: completed,

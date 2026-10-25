@@ -48,7 +48,7 @@ export async function checkStartConditions(ctx: WorkflowContext): Promise<void> 
   for (const item of await doctor(ctx.root, ctx.runner)) {
     if (item.status !== 'ok') problems.push(`${item.name} is ${item.status}: ${item.detail.split('\n')[0]}`);
   }
-  if (problems.length) throw new FatalError(`harness develop cannot start:\n- ${problems.join('\n- ')}`);
+  if (problems.length) throw new FatalError(`develop cannot start:\n- ${problems.join('\n- ')}`);
 }
 
 // プロジェクト全体の完成条件を確認する。complete の progress は最終 checkpoint に含まれている (§24)

@@ -40,3 +40,10 @@ export function projectPaths(root: string): ProjectPaths {
 export function harnessRoot(): string {
   return fileURLToPath(new URL('../../', import.meta.url));
 }
+
+// 利用者がカレントディレクトリからこの CLI を実行するコマンド。Workspace の root では node .harness/dist/cli/main.js、カレントディレクトリの外にあれば絶対パスになる (§9)
+export function cliCommand(): string {
+  const main = path.join(harnessRoot(), 'dist', 'cli', 'main.js');
+  const relative = path.relative(process.cwd(), main);
+  return `node ${relative.startsWith('..') ? main : relative}`;
+}

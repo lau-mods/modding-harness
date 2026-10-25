@@ -24,16 +24,10 @@ Linux または macOS で、次を用意します。
 
 ## セットアップ
 
-Harness は Mod の Workspace に `.harness` という Git submodule として置きます。Workspace 内では次のように実行します。
+Harness は Mod の Workspace に `.harness` という Git submodule として置き、Workspace の root で次のように実行します。
 
 ```sh
 node .harness/dist/cli/main.js <command>
-```
-
-この README では、このコマンドを `harness` と表記します。必要であれば alias を設定してください。
-
-```sh
-alias harness='node .harness/dist/cli/main.js'
 ```
 
 ### 既存の Workspace に導入する
@@ -43,7 +37,7 @@ cd my-mod
 git submodule add https://github.com/lau-mods/modding-harness.git .harness
 npm --prefix .harness ci
 npm --prefix .harness run build
-harness init
+node .harness/dist/cli/main.js init
 ```
 
 `init` が用意するものは次のとおりです。既にあるファイルは上書きしません。
@@ -124,7 +118,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
    ```
 
 3. 依存 Mod があれば、server の `mods/` と各 client の `$MCT_HOME/clients/<name>/minecraft/mods/` に置きます。
-4. `harness doctor` を実行し、すべての項目が `ok` になることを確認します。
+4. `node .harness/dist/cli/main.js doctor` を実行し、すべての項目が `ok` になることを確認します。
 
 E2E の実行時、Harness は server に次の処理を行います。
 
@@ -173,7 +167,7 @@ Expected Result:
 - Feature が1つ以上あり、すべての Feature に AC がある
 - `## Open Questions` が `None.` になっている
 
-形式と条件は `harness validate` で確認できます。
+形式と条件は `node .harness/dist/cli/main.js validate` で確認できます。
 
 ## 使い方
 
@@ -181,7 +175,7 @@ Expected Result:
 
 ```sh
 git add -A && git commit -m "Define the product"
-harness plan
+node .harness/dist/cli/main.js plan
 ```
 
 Claude が Feature を milestone に割り当てた計画を作ります。一つの Feature は必ず一つの milestone で完成させます。Harness は計画を検証したうえで、`.harness-state/plan.json` と初期の `.harness-state/progress.json` を commit します。この commit が最初の milestone の復元基点になります。
@@ -189,7 +183,7 @@ Claude が Feature を milestone に割り当てた計画を作ります。一�
 ### 2. 自動開発を実行する
 
 ```sh
-harness develop
+node .harness/dist/cli/main.js develop
 ```
 
 開始時に次の条件を確認し、満たさない場合は何も変更せずに終了します。
@@ -197,16 +191,16 @@ harness develop
 - `PROJECT.md` が active で、計画と整合している
 - Git の作業ツリーが clean である
 - `.harness` submodule が記録された revision のまま、変更されていない
-- `harness doctor` のすべての項目が `ok` である
+- `node .harness/dist/cli/main.js doctor` のすべての項目が `ok` である
 
 `develop` は、すべての milestone が完成するか fatal error が発生するまで処理を続けます。実行中は、Harness 本体、`PROJECT.md`、`plan.json` を変更しないでください。変更を検出すると fatal error で停止します。
 
-進行状況は、別の端末で `harness status` を実行すると確認できます。
+進行状況は、別の端末で `node .harness/dist/cli/main.js status` を実行すると確認できます。
 
 ### 3. 仕様を変更する
 
 ```sh
-harness chat "加工機の処理時間を5秒に変更する"
+node .harness/dist/cli/main.js chat "加工機の処理時間を5秒に変更する"
 ```
 
 Claude が `PROJECT.md` を更新します。Harness はその内容を検証して commit し、active であれば新しい計画と progress を作って commit します。仕様の変更と計画の作成は、`develop` を始める前か、正常に完了した後に行ってください。milestone の途中では実行できません。
@@ -318,29 +312,31 @@ await scenario(async ({ clients }) => {
 
 ## 中断・fatal error からの再開
 
-`develop` が途中で止まった場合 (fatal error、Ctrl-C、PC の停止など)、作業ツリーには作業途中の変更と更新された `progress.json` が残ります。fatal error の原因と発生工程は `harness status` で確認できます。
+`develop` が途中で止まった場合 (fatal error、Ctrl-C、PC の停止など)、作業ツリーには作業途中の変更と更新された `progress.json` が残ります。fatal error の原因と発生工程は `node .harness/dist/cli/main.js status` で確認できます。
 
 原因を取り除いたら、直前の checkpoint に戻してから再実行してください。`.harness-state/runs/` と `.harness-state/runtime/` は Git 管理外なので、この操作では消えません。
 
 ```sh
 git reset --hard && git clean -fd
-harness develop
+node .harness/dist/cli/main.js develop
 ```
 
 完成した milestone の commit はそのまま残り、次の milestone から再開します。
 
 ## コマンド一覧
 
+Workspace の root で `node .harness/dist/cli/main.js <command>` として実行します。`create` だけは、Workspace の外に clone した Harness から実行します。
+
 | コマンド | 機能 |
 |---|---|
-| `harness create <dir> --template-repo <repo> [--template-ref <ref>]` | 新しい NeoForge Workspace を作成する |
-| `harness init` | 既存の Workspace を初期化する |
-| `harness doctor` | 開発環境を診断する |
-| `harness validate` | 仕様、設定、計画、AC 対応表、progress を検査する |
-| `harness status` | 開発状態を表示する (`develop` の実行中も使用可) |
-| `harness chat "<要求>"` | 製品仕様を変更し、計画を作り直す |
-| `harness plan` | milestone 計画を作成して確定する |
-| `harness develop` | 自動開発を実行する |
+| `create <dir> --template-repo <repo> [--template-ref <ref>]` | 新しい NeoForge Workspace を作成する |
+| `init` | 既存の Workspace を初期化する |
+| `doctor` | 開発環境を診断する |
+| `validate` | 仕様、設定、計画、AC 対応表、progress を検査する |
+| `status` | 開発状態を表示する (`develop` の実行中も使用可) |
+| `chat "<要求>"` | 製品仕様を変更し、計画を作り直す |
+| `plan` | milestone 計画を作成して確定する |
+| `develop` | 自動開発を実行する |
 
 すべてのコマンドで `--project <dir>` を指定でき、カレントディレクトリ以外の Workspace を対象にできます。
 

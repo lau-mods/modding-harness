@@ -7,7 +7,7 @@ import { harnessRoot, projectPaths, STATE_DIR } from '../core/paths.js';
 // .harness submodule を持つ Workspace を初期化する。既存ファイルは上書きしない (§9.2)
 export async function initProject(root: string): Promise<void> {
   const modules = await readFile(path.join(root, '.gitmodules'), 'utf8').catch(() => '');
-  if (!/^\s*path\s*=\s*\.harness\s*$/m.test(modules)) throw new Error('Add Harness as the .harness Git submodule before harness init');
+  if (!/^\s*path\s*=\s*\.harness\s*$/m.test(modules)) throw new Error('Add Harness as the .harness Git submodule before running init');
   await writeProjectTemplate(root);
   await writeDefaultConfig(root);
   await writeAcceptanceTemplate(root);

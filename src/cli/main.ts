@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { chatProject } from '../commands/chat.js';
@@ -10,6 +9,7 @@ import { planProject } from '../commands/plan.js';
 import { collectStatus, formatStatus } from '../commands/status.js';
 import { validateProject } from '../commands/validate.js';
 import { FatalError } from '../core/errors.js';
+import { cliCommand } from '../core/paths.js';
 import { run } from '../core/process.js';
 import type { Plan } from '../plan/plan.js';
 
@@ -18,14 +18,14 @@ export type Command = 'create' | 'init' | 'doctor' | 'validate' | 'status' | 'ch
 
 // 各サブコマンドの usage
 export const usage: Record<Command, string> = {
-  create: 'harness create <directory> --template-repo <repo> [--template-ref <ref>]\nCreate a NeoForge workspace with Harness as the .harness submodule.',
-  init: 'harness init [--project <directory>]\nInitialize an existing workspace.',
-  doctor: 'harness doctor [--project <directory>]\nDiagnose the development environment.',
-  validate: 'harness validate [--project <directory>]\nValidate the specification, configuration and plan.',
-  status: 'harness status [--project <directory>]\nShow the development state.',
-  chat: 'harness chat <product change request> [--project <directory>]\nEdit the product specification and replan.',
-  plan: 'harness plan [--project <directory>]\nGenerate the milestone plan.',
-  develop: 'harness develop [--project <directory>]\nRun automated development until complete or fatal.',
+  create: 'create <directory> --template-repo <repo> [--template-ref <ref>]\nCreate a NeoForge workspace with Harness as the .harness submodule.',
+  init: 'init [--project <directory>]\nInitialize an existing workspace.',
+  doctor: 'doctor [--project <directory>]\nDiagnose the development environment.',
+  validate: 'validate [--project <directory>]\nValidate the specification, configuration and plan.',
+  status: 'status [--project <directory>]\nShow the development state.',
+  chat: 'chat <product change request> [--project <directory>]\nEdit the product specification and replan.',
+  plan: 'plan [--project <directory>]\nGenerate the milestone plan.',
+  develop: 'develop [--project <directory>]\nRun automated development until complete or fatal.',
 };
 
 // 引数を parse してサブコマンドへ振り分ける (§9)
@@ -36,7 +36,7 @@ export async function main(args: string[]): Promise<void> {
   });
   const [name, ...rest] = positionals;
   if (!name || values.help) {
-    console.log(name && name in usage ? usage[name as Command] : `Usage:\n${Object.values(usage).map(text => `  ${text.split('\n')[0]}`).join('\n')}`);
+    console.log(name && name in usage ? `Usage: ${cliCommand()} ${usage[name as Command]}` : `Usage: ${cliCommand()} <command>\n\nCommands:\n${Object.values(usage).map(text => `  ${text.split('\n')[0]}`).join('\n')}`);
     return;
   }
   if (!(name in usage)) throw new Error(`Unknown command: ${name}`);
@@ -44,15 +44,15 @@ export async function main(args: string[]): Promise<void> {
   switch (name as Command) {
     case 'create': {
       const templateRepo = values['template-repo'];
-      if (rest.length !== 1 || !templateRepo) throw new Error(usage.create);
+      if (rest.length !== 1 || !templateRepo) throw new Error(`Usage: ${cliCommand()} ${usage.create}`);
       const templateRef = values['template-ref'];
       await createProject(rest[0]!, templateRef ? { templateRepo, templateRef } : { templateRepo }, run);
-      console.log(`Created ${rest[0]}. Configure .harness-config.json, run harness doctor, then write PROJECT.md.`);
+      console.log(`Created ${rest[0]}. In ${rest[0]}, configure .harness-config.json, run node .harness/dist/cli/main.js doctor, then write PROJECT.md.`);
       break;
     }
     case 'init':
       await initProject(root);
-      console.log('Initialized. Configure .harness-config.json, run harness doctor, then write PROJECT.md.');
+      console.log(`Initialized. Configure .harness-config.json, run ${cliCommand()} doctor, then write PROJECT.md.`);
       break;
     case 'doctor': {
       const diagnostics = await doctor(root, run);
@@ -73,7 +73,7 @@ export async function main(args: string[]): Promise<void> {
       break;
     case 'chat': {
       const plan = await chatProject(root, rest.join(' '), run);
-      console.log(plan ? `PROJECT.md updated and the plan is fixed.\n${formatPlan(plan)}` : 'PROJECT.md updated. Planning waits until PROJECT.md meets the active conditions (see harness validate).');
+      console.log(plan ? `PROJECT.md updated and the plan is fixed.\n${formatPlan(plan)}` : `PROJECT.md updated. Planning waits until PROJECT.md meets the active conditions (see ${cliCommand()} validate).`);
       break;
     }
     case 'plan':

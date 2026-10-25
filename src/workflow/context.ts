@@ -5,6 +5,7 @@ import { FatalError } from '../core/errors.js';
 import type { FailureReport } from '../core/errors.js';
 import { assertIntegrity, captureBaseline } from '../core/integrity.js';
 import type { IntegrityBaseline } from '../core/integrity.js';
+import { cliCommand } from '../core/paths.js';
 import type { Runner } from '../core/process.js';
 import { loadPlan } from '../plan/plan.js';
 import type { Plan } from '../plan/plan.js';
@@ -31,7 +32,7 @@ export async function openContext(root: string, runner: Runner): Promise<Workflo
   const spec = await readProject(root);
   const plan = await loadPlan(root);
   const progress = await loadProgress(root);
-  if (!plan || !progress) throw new FatalError('The milestone plan is not fixed; run harness plan first');
+  if (!plan || !progress) throw new FatalError(`The milestone plan is not fixed; run ${cliCommand()} plan first`);
   return { root, config, spec, plan, progress, runner, baseline: await captureBaseline(root), failure: null };
 }
 

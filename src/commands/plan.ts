@@ -53,7 +53,7 @@ export async function commitPlan(root: string, plan: Plan, message: string): Pro
 export async function requireIdle(root: string): Promise<void> {
   const progress = await loadProgress(root);
   if (progress?.current) {
-    throw new Error(`Milestone ${progress.current.id} is in progress; finish harness develop, or restore the last checkpoint, before changing the specification or plan`);
+    throw new Error(`Milestone ${progress.current.id} is in progress; finish develop, or restore the last checkpoint, before changing the specification or plan`);
   }
 }
 

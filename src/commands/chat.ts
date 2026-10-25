@@ -4,7 +4,7 @@ import { loadConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
 import { writeAtomic } from '../core/fs.js';
 import { withLock } from '../core/lock.js';
-import { projectPaths } from '../core/paths.js';
+import { cliCommand, projectPaths } from '../core/paths.js';
 import type { Runner } from '../core/process.js';
 import { recordRun } from '../core/runs.js';
 import { commitFiles } from '../git/git.js';
@@ -16,7 +16,7 @@ import { commitPlan, createPlan, requireIdle } from './plan.js';
 // 製品要求を PROJECT.md に反映して検証・commit し、active なら新しい plan と progress を確定する。develop 実行中は拒否する (§9.6)
 // 変更後の仕様が active の条件を満たさない場合は plan を作らず null を返す
 export async function chatProject(root: string, request: string, runner: Runner): Promise<Plan | null> {
-  if (!request.trim()) throw new Error('harness chat requires a product change request');
+  if (!request.trim()) throw new Error(`Usage: ${cliCommand()} chat <product change request>`);
   return withLock(root, async () => {
     await requireIdle(root);
     const config = await loadConfig(root);
