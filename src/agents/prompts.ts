@@ -50,9 +50,10 @@ export function implementationPrompt(input: ImplementationInput): string {
 Implement milestone ${input.milestone.id} so that every target Acceptance Criterion holds. Write the Java sources, resources, GameTests, E2E scenarios and tests/acceptance.json entries the milestone needs.
 
 Rules:
-- PROJECT.md, .harness-state/ and .harness/ are read-only. Any change to them stops the harness.
+- PROJECT.md, LICENSE, .harness-state/ and .harness/ are read-only. Any change to them stops the harness.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
 - Follow the code style below in every change, including repairs.
+- Files outside the mod sources (Java sources, resources under src/, GameTests, tests/e2e/ and tests/acceptance.json), such as README, gradle.properties, build.gradle, settings.gradle and mod metadata, keep their content: change them only when a target Acceptance Criterion or the GameTest/E2E setup cannot work otherwise, and then change only the lines it needs, without rewriting, reformatting or reordering the rest.
 ${feedback.length ? `- Resolve every item in the feedback below with the smallest change that fixes it.
 - For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a reason grounded in the target Acceptance Criteria, the code style or the Minecraft/NeoForge specification when the current code is correct. A code style violation cannot be accepted.
 ` : ''}
@@ -124,6 +125,7 @@ Review for:
 - Saving and synchronization
 - GameTests: each one prepares the Preconditions, performs the Action and asserts the Expected Result of its criterion
 - Unused code, unused resources and unnecessary abstraction
+- Changes to files outside the mod sources (README, gradle.properties, build.gradle, settings.gradle, mod metadata) beyond the lines a target Acceptance Criterion or the GameTest/E2E setup needs
 For each issue give target (file and line), acId (the affected criterion, or null), problem, reason and fix. Request only changes that bring the code to the Acceptance Criteria and the code style. Return an empty list when the implementation is ready.
 
 ${CODE_RULES}
