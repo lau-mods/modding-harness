@@ -1,5 +1,5 @@
 import { FatalError } from '../core/errors.js';
-import { exists, readJson, writeAtomic } from '../core/fs.js';
+import { exists, readJson, writeCommittedJson } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
 import { findFeature } from '../spec/check.js';
 import type { AcceptanceCriterion, Feature, ProjectSpec } from '../spec/types.js';
@@ -33,7 +33,7 @@ export async function loadPlan(root: string): Promise<Plan | null> {
 
 // plan.json を保存する
 export async function savePlan(root: string, plan: Plan): Promise<void> {
-  await writeAtomic(projectPaths(root).plan, plan);
+  await writeCommittedJson(root, projectPaths(root).plan, plan);
 }
 
 // Feature の網羅性・重複の無い割り当て・依存関係の妥当性を検査して問題を列挙する (§6.1, §6.2, §9.4)

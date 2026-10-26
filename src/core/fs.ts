@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
 // ファイルまたはディレクトリが存在するかを返す
@@ -23,4 +24,9 @@ export async function writeAtomic(file: string, value: unknown): Promise<void> {
 // 文字列または Buffer の sha256 を返す
 export function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+// Git に commit する JSON を、Workspace と home ディレクトリの絶対パスを除いて書き込む。利用者名などの環境固有の情報を公開しないため
+export async function writeCommittedJson(root: string, file: string, value: unknown): Promise<void> {
+  await writeAtomic(file, JSON.stringify(value, null, 2).replaceAll(`${root}${path.sep}`, '').replaceAll(root, '.').replaceAll(homedir(), '~') + '\n');
 }

@@ -14,7 +14,9 @@ export type CreateOptions = { templateRepo: string; templateRef?: string };
 export async function createProject(directory: string, options: CreateOptions, runner: Runner): Promise<void> {
   const target = path.resolve(directory);
   if (await exists(target)) throw new Error(`${directory} already exists`);
-  const harnessRepo = (await git(harnessRoot(), ['remote', 'get-url', 'origin'])).trim();
+  // .gitmodules は公開されるため、ローカルパスや認証情報を含む URL は submodule に登録しない
+  const harnessRepo = (await git(harnessRoot(), ['remote', 'get-url', 'origin'])).trim().replace(/^(https?:\/\/)[^@/]+@/, '$1');
+  if (!/^(https?:\/\/|ssh:\/\/|git:\/\/|[\w.-]+@[\w.-]+:)/.test(harnessRepo)) throw new Error(`The Harness origin must be a remote repository URL, not ${harnessRepo}`);
   requireSuccess(await runner('git', ['clone', options.templateRepo, target], { cwd: path.dirname(target) }), 'git clone');
   if (options.templateRef) await git(target, ['checkout', options.templateRef]);
   // template の履歴を持ち込まず、独立した repository として始める

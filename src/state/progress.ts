@@ -1,5 +1,5 @@
 import { FatalError } from '../core/errors.js';
-import { exists, readJson, writeAtomic } from '../core/fs.js';
+import { exists, readJson, writeCommittedJson } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
 import type { IssueSet } from '../review/issues.js';
 
@@ -56,7 +56,7 @@ export async function loadProgress(root: string): Promise<Progress | null> {
 
 // progress.json を保存する (§7.1)
 export async function saveProgress(root: string, progress: Progress): Promise<void> {
-  await writeAtomic(projectPaths(root).progress, progress);
+  await writeCommittedJson(root, projectPaths(root).progress, progress);
 }
 
 // milestone 開始時の途中進捗を作る。recovery 回数は引き継ぐ (§20.3)
