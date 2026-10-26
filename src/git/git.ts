@@ -79,6 +79,13 @@ export async function findCheckpoint(root: string, milestoneId: string): Promise
   return found || null;
 }
 
+// 名前に LICENSE / LICENCE を含むファイルへの変更を取り消す。HEAD の内容へ戻し、新規作成されたものは削除する
+export async function revertLicenseFiles(root: string): Promise<void> {
+  const pathspec = ':(glob)**/*LICEN[CS]E*';
+  if ((await git(root, ['ls-files', '--', pathspec])).trim()) await git(root, ['checkout', 'HEAD', '--', pathspec]);
+  await git(root, ['clean', '-f', '--', pathspec]);
+}
+
 // 作業ツリーを指定 checkpoint の状態へ復元し、未追跡ファイルを削除する。Git 管理外の .harness-state は保持する。失敗は FatalError (§20.2, §23)
 export async function restoreCheckpoint(root: string, commit: string): Promise<void> {
   try {

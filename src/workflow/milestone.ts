@@ -12,7 +12,7 @@ import { e2eFailure, runE2E } from '../e2e/e2e.js';
 import type { E2ERunSummary } from '../e2e/e2e.js';
 import { resetRuntime } from '../e2e/runtime.js';
 import { gameTestFailure, runGameTests } from '../gametest/gametest.js';
-import { changedFilesFrom, createCheckpoint, diffFrom, head, restoreCheckpoint } from '../git/git.js';
+import { changedFilesFrom, createCheckpoint, diffFrom, head, restoreCheckpoint, revertLicenseFiles } from '../git/git.js';
 import { milestoneCriteria, milestoneFeatures, nextMilestone } from '../plan/plan.js';
 import type { Milestone } from '../plan/plan.js';
 import { applyResponses, applyVerdicts, createIssueSet, isSettled, openIssues } from '../review/issues.js';
@@ -69,6 +69,7 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
     e2eIssues: openIssues(current.e2eReview),
   };
   const output = await recordRun(ctx.root, milestone.id, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir), input));
+  await revertLicenseFiles(ctx.root);
   await guardIntegrity(ctx);
   if (current.codeReview) current.codeReview = applyResponses(current.codeReview, output.responses);
   if (current.e2eReview) current.e2eReview = applyResponses(current.e2eReview, output.responses);

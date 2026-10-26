@@ -9,18 +9,12 @@ export type IntegrityBaseline = {
   harness: string; // Harness 本体 (.harness)
   spec: string; // PROJECT.md
   plan: string; // plan.json
-  license: string; // Workspace root の LICENSE。存在しなければ空文字列
 };
 
-// 現在の Harness 本体・PROJECT.md・plan・LICENSE の fingerprint を記録する
+// 現在の Harness 本体・PROJECT.md・plan の fingerprint を記録する
 export async function captureBaseline(root: string): Promise<IntegrityBaseline> {
   const paths = projectPaths(root);
-  return {
-    harness: await fingerprintDir(harnessRoot()),
-    spec: sha256(await readFile(paths.spec)),
-    plan: sha256(await readFile(paths.plan)),
-    license: await readFile(path.join(root, 'LICENSE')).then(sha256, () => ''),
-  };
+  return { harness: await fingerprintDir(harnessRoot()), spec: sha256(await readFile(paths.spec)), plan: sha256(await readFile(paths.plan)) };
 }
 
 // 固定対象が開始時から変更されていれば FatalError を投げる (§4.2, §23)
@@ -29,7 +23,6 @@ export async function assertIntegrity(root: string, baseline: IntegrityBaseline)
   if (current.harness !== baseline.harness) throw new FatalError('Harness files were modified during develop');
   if (current.spec !== baseline.spec) throw new FatalError(`PROJECT.md was modified during develop; change the specification with ${cliCommand()} chat`);
   if (current.plan !== baseline.plan) throw new FatalError('plan.json was modified during develop; the plan is fixed until development ends');
-  if (current.license !== baseline.license) throw new FatalError('LICENSE was modified during develop');
 }
 
 // ディレクトリ配下のファイルのパスと内容から fingerprint を作る。node_modules と .git は除く

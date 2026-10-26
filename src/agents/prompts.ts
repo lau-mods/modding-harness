@@ -50,7 +50,8 @@ export function implementationPrompt(input: ImplementationInput): string {
 Implement milestone ${input.milestone.id} so that every target Acceptance Criterion holds. Write the Java sources, resources, GameTests, E2E scenarios and tests/acceptance.json entries the milestone needs.
 
 Rules:
-- PROJECT.md, LICENSE, .harness-state/ and .harness/ are read-only. Any change to them stops the harness.
+- PROJECT.md, .harness-state/ and .harness/ are read-only. Any change to them stops the harness.
+- Never create, modify or delete a file whose name contains LICENSE or LICENCE; the harness discards such changes.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
 - Follow the code style below in every change, including repairs.
 - Files outside the mod sources (Java sources, resources under src/, GameTests, tests/e2e/ and tests/acceptance.json), such as README, gradle.properties, build.gradle, settings.gradle and mod metadata, keep their content: change them only when a target Acceptance Criterion or the GameTest/E2E setup cannot work otherwise, and then change only the lines it needs, without rewriting, reformatting or reordering the rest.
