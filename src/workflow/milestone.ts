@@ -178,11 +178,11 @@ async function review(
   recheck: (call: AgentCall, issues: ReviewIssue[]) => Promise<IssueVerdict[]>,
 ): Promise<IssueSet> {
   if (!set) {
-    const findings = await recordRun(ctx.root, milestone.id, `${kind}_review`, logDir => initial(agentCall(ctx, 'review', logDir)));
+    const findings = await recordRun(ctx.root, milestone.id, `${kind}_review`, logDir => initial(agentCall(ctx, `${kind}Review`, logDir)));
     return createIssueSet(kind, findings);
   }
   const targets = set.issues.filter(issue => issue.status !== 'accepted');
   if (!targets.length) return set;
-  const verdicts = await recordRun(ctx.root, milestone.id, `${kind}_recheck`, logDir => recheck(agentCall(ctx, 'review', logDir), targets));
+  const verdicts = await recordRun(ctx.root, milestone.id, `${kind}_recheck`, logDir => recheck(agentCall(ctx, `${kind}Review`, logDir), targets));
   return applyVerdicts(set, verdicts);
 }

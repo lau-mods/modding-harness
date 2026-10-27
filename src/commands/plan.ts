@@ -34,7 +34,7 @@ export async function createPlan(root: string, spec: ProjectSpec, config: Harnes
     features: spec.features,
     projectFiles: (await git(root, ['ls-files'])).split('\n').filter(Boolean),
   };
-  const proposal = await recordRun(root, null, 'plan', logDir => proposePlan({ config: config.agents.review, root, logDir, runner }, input));
+  const proposal = await recordRun(root, null, 'plan', logDir => proposePlan({ config: config.agents.codeReview, root, logDir, runner }, input));
   const plan: Plan = { milestones: proposal.milestones };
   const problems = checkPlan(plan, spec);
   if (problems.length) throw new FatalError(`Claude proposed an invalid plan:\n- ${problems.join('\n- ')}`);

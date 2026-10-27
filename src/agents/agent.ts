@@ -10,7 +10,7 @@ export type AgentRole = 'implementation' | 'plan' | 'spec_edit' | 'code_review' 
 export type JsonSchema = Record<string, unknown>;
 
 // agent 呼び出しに共通する実行環境。cwd は Workspace root、記録は logDir に保存する
-export type AgentCall = { config: AgentConfig; root: string; logDir: string; runner: Runner };
+export type AgentCall<C extends AgentConfig = AgentConfig> = { config: C; root: string; logDir: string; runner: Runner };
 
 // agent 呼び出し 1 回分の要求。images は agent に添付する画像
 export type AgentRequest = { role: AgentRole; prompt: string; images: string[] };

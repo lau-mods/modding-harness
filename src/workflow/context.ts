@@ -53,8 +53,8 @@ export async function guardIntegrity(ctx: WorkflowContext): Promise<void> {
   await assertIntegrity(ctx.root, ctx.baseline);
 }
 
-// Codex (implementation) または Claude (review) 用の AgentCall を作る
-export function agentCall(ctx: WorkflowContext, agent: 'implementation' | 'review', logDir: string): AgentCall {
+// 役割に対応する agent 設定で AgentCall を作る
+export function agentCall<K extends keyof HarnessConfig['agents']>(ctx: WorkflowContext, agent: K, logDir: string): AgentCall<HarnessConfig['agents'][K]> {
   return { config: ctx.config.agents[agent], root: ctx.root, logDir, runner: ctx.runner };
 }
 

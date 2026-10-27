@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { CodexConfig } from '../config/config.js';
 import type { FailureReport } from '../core/errors.js';
 import { FatalError } from '../core/errors.js';
 import type { Milestone } from '../plan/plan.js';
@@ -25,7 +26,7 @@ export type ImplementationInput = {
 export type ImplementationOutput = { summary: string; changedFiles: string[]; responses: IssueResponse[] };
 
 // Codex CLI の引数を組み立てる。Workspace への書き込みを許可する
-export function codexArgs(call: AgentCall, request: AgentRequest, schemaFile: string, outputFile: string): string[] {
+export function codexArgs(call: AgentCall<CodexConfig>, request: AgentRequest, schemaFile: string, outputFile: string): string[] {
   return [
     'exec',
     ...request.images.flatMap(image => ['--image', image]),
@@ -33,6 +34,8 @@ export function codexArgs(call: AgentCall, request: AgentRequest, schemaFile: st
     '-c', 'approval_policy="never"',
     '--cd', call.root,
     ...(call.config.model ? ['--model', call.config.model] : []),
+    ...(call.config.effort ? ['-c', `model_reasoning_effort="${call.config.effort}"`] : []),
+    ...(call.config.fast ? ['-c', 'service_tier="priority"'] : []),
     '--output-schema', schemaFile,
     '--output-last-message', outputFile,
     '-',
@@ -40,7 +43,7 @@ export function codexArgs(call: AgentCall, request: AgentRequest, schemaFile: st
 }
 
 // Codex CLI を実行して構造化出力を得る。失敗は FatalError (§23)
-export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promise<T> {
+export async function runCodex<T>(call: AgentCall<CodexConfig>, request: AgentRequest): Promise<T> {
   const schemaFile = path.join(call.logDir, 'schema.json');
   const outputFile = path.join(call.logDir, 'output.json');
   await writeFile(schemaFile, JSON.stringify(outputSchema(request.role), null, 2));
@@ -54,7 +57,7 @@ export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promi
 }
 
 // milestone の実装、または実行失敗・レビュー指摘の修正を Codex に依頼する。失敗や E2E 指摘の screenshot は画像として添付する (§11, §14.2, §17.2, §19.2)
-export async function implement(call: AgentCall, input: ImplementationInput): Promise<ImplementationOutput> {
+export async function implement(call: AgentCall<CodexConfig>, input: ImplementationInput): Promise<ImplementationOutput> {
   const images = [...input.failure?.screenshots ?? [], ...input.e2eIssues.map(issue => issue.target)];
   return runCodex<ImplementationOutput>(call, { role: 'implementation', prompt: implementationPrompt(input), images: [...new Set(images)] });
 }

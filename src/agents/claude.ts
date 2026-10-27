@@ -42,6 +42,7 @@ export function claudeArgs(call: AgentCall, request: AgentRequest): string[] {
     '--tools', 'Read,Grep,Glob',
     '--permission-mode', 'dontAsk',
     ...(call.config.model ? ['--model', call.config.model] : []),
+    ...(call.config.effort ? ['--effort', call.config.effort] : []),
   ];
 }
 

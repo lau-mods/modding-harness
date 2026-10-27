@@ -73,8 +73,9 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "gameTest": "runGameTestServer"
   },
   "agents": {
-    "implementation": { "command": "codex", "model": null },
-    "review": { "command": "claude", "model": null }
+    "implementation": { "command": "codex", "model": "gpt-5.6-sol", "effort": "medium", "fast": true },
+    "codeReview": { "command": "claude", "model": "claude-opus-5-5", "effort": "medium" },
+    "e2eReview": { "command": "claude", "model": "claude-opus-5-5", "effort": "medium" }
   },
   "runtime": {
     "command": "mct",
@@ -94,8 +95,13 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 | キー | 内容 |
 |---|---|
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
+| `agents.implementation` | 実装・修正に使う Codex |
+| `agents.codeReview` | Code Review と、`plan` / `chat` に使う Claude |
+| `agents.e2eReview` | E2E の screenshot レビューに使う Claude |
 | `agents.*.command` | Codex / Claude CLI のコマンド |
-| `agents.*.model` | 使用するモデル。`null` なら各 CLI の標準モデル |
+| `agents.*.model` | 使用するモデル。`null` なら各 CLI の設定に従う |
+| `agents.*.effort` | 推論の深さ (`low` / `medium` / `high` など)。`null` なら各 CLI の設定に従う |
+| `agents.implementation.fast` | `true` なら Codex を Fast (priority) tier で実行する。`false` なら CLI の設定に従う |
 | `runtime.command` | MC Pilot CLI のコマンド |
 | `runtime.server.directory` | NeoForge server のディレクトリ (Workspace root からの相対パス) |
 | `runtime.server.command` | server の起動コマンド (`directory` 内で実行) |

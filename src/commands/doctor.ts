@@ -33,14 +33,17 @@ export async function doctor(root: string, runner: Runner): Promise<Diagnostic[]
 // Codex / Claude CLI が実行でき、認証が利用可能か確認する (§9.3)
 export async function checkAgents(root: string, config: HarnessConfig, runner: Runner): Promise<Diagnostic[]> {
   const codex = await probe(root, 'Codex', config.agents.implementation.command, ['login', 'status'], runner);
-  const claude = await probe(root, 'Claude', config.agents.review.command, ['auth', 'status'], runner);
-  // claude auth status は終了コード 0 のまま未ログインを JSON で返す
-  const status = claude.status === 'ok' ? parseJson(claude.detail) as { loggedIn?: boolean; authMethod?: string } | null : null;
-  if (status) {
-    claude.status = status.loggedIn ? 'ok' : 'misconfigured';
-    claude.detail = status.loggedIn ? `logged in (${status.authMethod})` : 'Not logged in; run claude auth login';
-  }
-  return [codex, claude];
+  const claudes = await Promise.all([...new Set([config.agents.codeReview.command, config.agents.e2eReview.command])].map(async command => {
+    const claude = await probe(root, `Claude (${command})`, command, ['auth', 'status'], runner);
+    // claude auth status は終了コード 0 のまま未ログインを JSON で返す
+    const status = claude.status === 'ok' ? parseJson(claude.detail) as { loggedIn?: boolean; authMethod?: string } | null : null;
+    if (status) {
+      claude.status = status.loggedIn ? 'ok' : 'misconfigured';
+      claude.detail = status.loggedIn ? `logged in (${status.authMethod})` : 'Not logged in; run claude auth login';
+    }
+    return claude;
+  }));
+  return [codex, ...claudes];
 }
 
 // MC Pilot・NeoForge server・client instance の準備状況を確認する (§9.3)

@@ -22,7 +22,7 @@ export async function chatProject(root: string, request: string, runner: Runner)
     const config = await loadConfig(root);
     const current = await readProject(root);
     const output = await recordRun(root, null, 'spec_edit', logDir =>
-      editSpec({ config: config.agents.review, root, logDir, runner }, { request, projectMarkdown: current.text }));
+      editSpec({ config: config.agents.codeReview, root, logDir, runner }, { request, projectMarkdown: current.text }));
     const spec = parseProject(output.projectMarkdown);
     const problems = checkSpec(spec);
     if (problems.length) throw new FatalError(`Claude returned an invalid PROJECT.md:\n- ${problems.join('\n- ')}`);

@@ -398,11 +398,19 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
   "agents": {
     "implementation": {
       "command": "codex",
-      "model": null
+      "model": "gpt-5.6-sol",
+      "effort": "medium",
+      "fast": true
     },
-    "review": {
+    "codeReview": {
       "command": "claude",
-      "model": null
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    "e2eReview": {
+      "command": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
     }
   },
   "runtime": {
@@ -415,7 +423,11 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 }
 ```
 
-`model` が `null` の場合、各 CLI の標準モデルを使用する。
+`agents` は役割ごとに使用する agent を指定する。`implementation` は Codex implementation、`codeReview` は Claude Code Review と `plan` / `chat`、`e2eReview` は Claude E2E レビューに使用する。
+
+`model` と `effort` が `null` の場合、各 CLI の設定に従う。
+
+`implementation.fast` が `true` の場合、Codex を Fast tier で実行する。`false` の場合は CLI の設定に従う。
 
 `gradle` は各工程の実行 task を指定する。
 
