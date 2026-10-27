@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import path from 'node:path';
 import { FatalError } from '../core/errors.js';
 import { readJson } from '../core/fs.js';
 import { projectPaths } from '../core/paths.js';
@@ -30,19 +32,21 @@ export type HarnessConfig = {
   runtime: RuntimeConfig;
 };
 
-// .harness-config.json を読み込み検証する。読めない・必須設定が無い場合は FatalError (§23)
+// .harness-config.json を読み込み検証し、~/ で始まる値を home ディレクトリのパスに展開する。読めない・必須設定が無い場合は FatalError (§23)
 export async function loadConfig(root: string): Promise<HarnessConfig> {
   let value: unknown;
   try { value = await readJson(projectPaths(root).config); }
   catch (error) { throw new FatalError(`Cannot read ${CONFIG_FILE}: ${(error as Error).message}`); }
   const problems = checkConfig(value);
   if (problems.length) throw new FatalError(`Invalid ${CONFIG_FILE}:\n- ${problems.join('\n- ')}`);
-  return value as HarnessConfig;
+  return JSON.parse(JSON.stringify(value), (_, item: unknown) => typeof item === 'string' && item.startsWith('~/') ? path.join(homedir(), item.slice(2)) : item) as HarnessConfig;
 }
 
 // 任意の値を HarnessConfig として検証し、問題点を列挙する (§9.4)
 export function checkConfig(value: unknown): string[] {
   const problems: string[] = [];
+  // 設定ファイルは commit されるため、利用者名を含む home ディレクトリの絶対パスは ~/ で書かせる
+  if (JSON.stringify(value).includes(homedir())) problems.push(`Write paths under the home directory as ~/ instead of ${homedir()}`);
   const get = (key: string): unknown => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | null | undefined)?.[part], value);
   const text = (key: string): void => {
     const field = get(key);
