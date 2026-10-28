@@ -41,7 +41,6 @@ export async function attemptMilestone(ctx: WorkflowContext, milestone: Mileston
     ctx.progress.current = newMilestoneProgress(milestone.id, base, 0);
     ctx.progress.lastCheckpoint = base;
   }
-  ctx.failure = null;
   for (;;) {
     await implementationStep(ctx, milestone);
     if (!await buildStep(ctx)) continue;
@@ -64,7 +63,7 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
     features: milestoneFeatures(ctx.spec, milestone),
     criteria: milestoneCriteria(ctx.spec, milestone),
     relatedFiles: milestone.scope,
-    failure: ctx.failure,
+    failure: current.failure,
     codeIssues: openIssues(current.codeReview),
     e2eIssues: openIssues(current.e2eReview),
   };
@@ -73,7 +72,7 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
   await guardIntegrity(ctx);
   if (current.codeReview) current.codeReview = applyResponses(current.codeReview, output.responses);
   if (current.e2eReview) current.e2eReview = applyResponses(current.e2eReview, output.responses);
-  ctx.failure = null;
+  current.failure = null;
   await saveContext(ctx);
 }
 
@@ -166,7 +165,6 @@ export async function recoverMilestone(ctx: WorkflowContext, milestone: Mileston
   await rm(path.join(ctx.root, 'build', 'libs'), { recursive: true, force: true });
   // 復元で progress.json も checkpoint 時点に戻るため、recovery 回数を引き継いだ途中進捗を保存し直す
   ctx.progress.current = newMilestoneProgress(milestone.id, current.baseCommit, current.recoveries + 1);
-  ctx.failure = null;
   await saveContext(ctx);
   await guardIntegrity(ctx);
 }

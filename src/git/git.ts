@@ -23,9 +23,9 @@ export async function head(root: string): Promise<string> {
   return (await git(root, ['rev-parse', 'HEAD'])).trim();
 }
 
-// 未 commit の変更 (untracked を含む) が無ければ true (§10.1)
-export async function isClean(root: string): Promise<boolean> {
-  return (await git(root, ['status', '--porcelain'])).trim() === '';
+// 未 commit の変更 (untracked を含む) が無ければ true。paths を指定するとそのパスだけを見る (§10.1)
+export async function isClean(root: string, ...paths: string[]): Promise<boolean> {
+  return (await git(root, ['status', '--porcelain', '--', ...paths])).trim() === '';
 }
 
 // commit が存在すれば true (§9.4 Progress と checkpoint の整合性)

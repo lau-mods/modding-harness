@@ -43,7 +43,12 @@ export async function checkStartConditions(ctx: WorkflowContext): Promise<void> 
   const problems: string[] = [];
   if (ctx.spec.status !== 'active') problems.push('PROJECT.md Status must be active');
   problems.push(...checkSpec(ctx.spec), ...checkActiveConditions(ctx.spec), ...checkPlan(ctx.plan, ctx.spec));
-  if (!await isClean(ctx.root)) problems.push('The Git working tree must be clean; commit or discard local changes');
+  const current = ctx.progress.current;
+  if (current) {
+    // fatal や中断で止まった milestone は、作業ツリーの変更とレビュー状態を引き継いで Codex implementation から再開する
+    if (await head(ctx.root) !== current.baseCommit) problems.push(`HEAD must stay at ${current.baseCommit}, the restore point of ${current.id}, to resume it`);
+    if (!await isClean(ctx.root, 'PROJECT.md', '.harness-state/plan.json')) problems.push('PROJECT.md and plan.json must match HEAD to resume; restore them, or restore the last checkpoint to restart the milestone');
+  } else if (!await isClean(ctx.root)) problems.push('The Git working tree must be clean; commit or discard local changes');
   if (!await harnessSubmoduleReady(ctx.root)) problems.push('The .harness submodule must be checked out at the recorded revision without local changes');
   for (const item of await doctor(ctx.root, ctx.runner)) {
     if (item.status !== 'ok') problems.push(`${item.name} is ${item.status}: ${item.detail.split('\n')[0]}`);

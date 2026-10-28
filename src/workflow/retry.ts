@@ -19,10 +19,10 @@ export class RecoveryRequired extends Error {
 export async function recordFailure(ctx: WorkflowContext, phase: FailurePhase, failure: ExecutionFailure): Promise<void> {
   const current = currentMilestone(ctx);
   const count = ++current.failures[phase];
-  ctx.failure = failure.report(phase);
+  current.failure = failure.report(phase);
   await saveContext(ctx);
   process.stderr.write(`[harness] ${current.id} ${phase} failed (${count}/${MAX_REPAIRS + 1}): ${failure.message}\n`);
-  if (count > MAX_REPAIRS) throw new RecoveryRequired(phase, ctx.failure);
+  if (count > MAX_REPAIRS) throw new RecoveryRequired(phase, current.failure);
 }
 
 // 工程の成功で連続失敗回数を 0 に戻す (§19.2)

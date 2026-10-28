@@ -2,7 +2,6 @@ import type { AgentCall } from '../agents/agent.js';
 import { loadConfig } from '../config/config.js';
 import type { HarnessConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
-import type { FailureReport } from '../core/errors.js';
 import { assertIntegrity, captureBaseline } from '../core/integrity.js';
 import type { IntegrityBaseline } from '../core/integrity.js';
 import { cliCommand } from '../core/paths.js';
@@ -23,7 +22,6 @@ export type WorkflowContext = {
   progress: Progress;
   runner: Runner;
   baseline: IntegrityBaseline; // 開始時の Harness 本体・PROJECT.md・plan の fingerprint
-  failure: FailureReport | null; // 次の Codex 修正へ渡す直前の実行失敗
 };
 
 // config / PROJECT.md / plan / progress を読み込み、固定対象の fingerprint を記録する。読めなければ FatalError (§6.3, §23)
@@ -33,7 +31,7 @@ export async function openContext(root: string, runner: Runner): Promise<Workflo
   const plan = await loadPlan(root);
   const progress = await loadProgress(root);
   if (!plan || !progress) throw new FatalError(`The milestone plan is not fixed; run ${cliCommand()} plan first`);
-  return { root, config, spec, plan, progress, runner, baseline: await captureBaseline(root), failure: null };
+  return { root, config, spec, plan, progress, runner, baseline: await captureBaseline(root) };
 }
 
 // 現在の工程を更新して progress を保存し、進行状況を表示する (§7.1, §22)

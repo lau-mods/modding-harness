@@ -195,7 +195,7 @@ node .harness/dist/cli/main.js develop
 開始時に次の条件を確認し、満たさない場合は何も変更せずに終了します。
 
 - `PROJECT.md` が active で、計画と整合している
-- Git の作業ツリーが clean である
+- Git の作業ツリーが clean である (途中で止まった milestone を再開する場合を除く。下記「中断・fatal error からの再開」を参照)
 - `.harness` submodule が記録された revision のまま、変更されていない
 - `node .harness/dist/cli/main.js doctor` のすべての項目が `ok` である
 
@@ -320,14 +320,22 @@ await scenario(async ({ clients }) => {
 
 `develop` が途中で止まった場合 (fatal error、Ctrl-C、PC の停止など)、作業ツリーには作業途中の変更と更新された `progress.json` が残ります。fatal error の原因と発生工程は `node .harness/dist/cli/main.js status` で確認できます。
 
-原因を取り除いたら、直前の checkpoint に戻してから再実行してください。`.harness-state/runs/` と `.harness-state/runtime/` は Git 管理外なので、この操作では消えません。
+原因を取り除いたら、そのまま再実行します。作業途中の変更、レビュー指摘、失敗回数、直前の実行失敗を引き継ぎ、止まった milestone の Codex implementation から再開します。
+
+```sh
+node .harness/dist/cli/main.js develop
+```
+
+再開するには、HEAD がその milestone の開始時点のままで、`PROJECT.md` と `plan.json` が HEAD から変更されていない必要があります。
+
+作業途中の変更を捨てて milestone を最初からやり直す場合は、直前の checkpoint に戻してから実行します。`.harness-state/runs/` と `.harness-state/runtime/` は Git 管理外なので、この操作では消えません。
 
 ```sh
 git reset --hard && git clean -fd
 node .harness/dist/cli/main.js develop
 ```
 
-完成した milestone の commit はそのまま残り、次の milestone から再開します。
+どちらの場合も、完成した milestone の commit はそのまま残ります。
 
 ## コマンド一覧
 
