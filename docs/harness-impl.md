@@ -398,7 +398,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
   "agents": {
     "implementation": {
       "command": "codex",
-      "model": "gpt-5.6-sol",
+      "model": "gpt-6-sol",
       "effort": "medium",
       "fast": true
     },

@@ -93,7 +93,7 @@ export function defaultConfig(): HarnessConfig {
   return {
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
-      implementation: { command: 'codex', model: 'gpt-5.6-sol', effort: 'medium', fast: true },
+      implementation: { command: 'codex', model: 'gpt-6-sol', effort: 'medium', fast: true },
       codeReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'medium' },
       e2eReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'high' },
     },

@@ -73,7 +73,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "gameTest": "runGameTestServer"
   },
   "agents": {
-    "implementation": { "command": "codex", "model": "gpt-5.6-sol", "effort": "medium", "fast": true },
+    "implementation": { "command": "codex", "model": "gpt-6-sol", "effort": "medium", "fast": true },
     "codeReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "medium" },
     "e2eReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "high" }
   },
