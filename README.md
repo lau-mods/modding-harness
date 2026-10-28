@@ -74,8 +74,8 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
   },
   "agents": {
     "implementation": { "command": "codex", "model": "gpt-5.6-sol", "effort": "medium", "fast": true },
-    "codeReview": { "command": "claude", "model": "claude-opus-5-5", "effort": "medium" },
-    "e2eReview": { "command": "claude", "model": "claude-opus-5-5", "effort": "high" }
+    "codeReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "medium" },
+    "e2eReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "high" }
   },
   "runtime": {
     "command": "mct",

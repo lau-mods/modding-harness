@@ -404,12 +404,12 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
     },
     "codeReview": {
       "command": "claude",
-      "model": "claude-opus-5-5",
+      "model": "claude-sonnet-5-5",
       "effort": "medium"
     },
     "e2eReview": {
       "command": "claude",
-      "model": "claude-opus-5-5",
+      "model": "claude-sonnet-5-5",
       "effort": "high"
     }
   },
