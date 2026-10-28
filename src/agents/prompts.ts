@@ -58,6 +58,7 @@ Rules:
 - Follow the code style below in every change, including repairs.
 - Files outside the mod sources (Java sources, resources under src/, GameTests, tests/e2e/ and tests/acceptance.json), such as README, gradle.properties, build.gradle, settings.gradle and mod metadata, keep their content: change them only when a target Acceptance Criterion or the GameTest/E2E setup cannot work otherwise, and then change only the lines it needs, without rewriting, reformatting or reordering the rest.
 ${feedback.length ? `- Resolve every item in the feedback below with the smallest change that fixes it.
+- Logs attached to a failure also contain warnings and errors from Minecraft, NeoForge, other mods and the launcher that are unrelated to it; act only on the ones that explain the failure.
 - For each review issue, add a response: "fixed" when you changed the code, or "accepted" with a reason grounded in the target Acceptance Criteria, the code style or the Minecraft/NeoForge specification when the current code is correct. A code style violation cannot be accepted.
 ` : ''}
 ${CODE_RULES}
@@ -158,6 +159,7 @@ export function e2eReviewPrompt(input: E2EReviewInput): string {
   return `You review screenshots of a NeoForge Minecraft mod taken by the E2E scenarios of milestone ${input.milestone.id}. Open every screenshot with the Read tool.
 
 Compare each screenshot with the Expected Result of its Acceptance Criterion and list every display problem you find now: missing textures, broken block, item or entity models, UV errors, z-fighting, clipping, transparency errors, broken GUI layout, text overflow and inconsistent resources. This list becomes the fixed issue set of the milestone; later reviews only check these issues.
+Review only what the mod renders for the target criteria. Chat and command feedback, toasts and notifications (advancements, recipes, tutorials), the vanilla HUD, debug overlays and log or error text on the screen are outside the review: do not report them.
 For each issue give target (the screenshot path), acId, problem, reason and fix. Return an empty list when every screenshot shows the Expected Result.
 
 ${block('Screenshots', screenshotList(input))}
@@ -170,6 +172,7 @@ export function e2eRecheckPrompt(input: E2EReviewInput, issues: ReviewIssue[]): 
   return `Re-check the new screenshots of milestone ${input.milestone.id} of a NeoForge Minecraft mod. Open every screenshot with the Read tool.
 
 Judge only the issues listed below; their targets point to screenshots of an earlier run, and the new screenshots of the same criteria are listed below. Return one verdict per issue ID: "resolved" when the new screenshots no longer show the problem, "open" when they still do or it has come back. Do not report new issues.
+An issue about content outside the review (chat and command feedback, toasts and notifications, the vanilla HUD, debug overlays, log or error text on the screen) is resolved.
 
 ${block('Issues to check', json(issues.map(issueView)))}
 

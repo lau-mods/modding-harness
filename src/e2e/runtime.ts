@@ -122,9 +122,15 @@ export async function stopServer(root: string): Promise<void> {
 export async function startClients(root: string, config: RuntimeConfig, runner: Runner): Promise<void> {
   const server = requireServer(config);
   for (const name of config.clients) {
+    // チュートリアルのトーストが screenshot に写らないようにする
+    await setProperties(clientDir(root, name, 'options.txt'), { tutorialStep: 'none' }, ':');
     await mcPilot(root, config, ['client', 'launch', name, '--server', server.address, '--ws-port', String(await freePort()), '--account', accountName(name), '--force'], runner);
     const ready = await mcPilot(root, config, ['client', 'wait-ready', name, '--timeout', String(CLIENT_READY_TIMEOUT_SECONDS)], runner) as { inWorld?: boolean } | null;
     if (ready?.inWorld !== true) throw new ExecutionFailure(`Client ${name} did not join the world`);
+  }
+  // scenario のコマンドのフィードバックと進捗の通知がチャットに出て screenshot に写らないようにする
+  for (const rule of ['sendCommandFeedback', 'announceAdvancements']) {
+    await mcPilot(root, config, ['--client', config.clients[0]!, 'chat', 'command', `gamerule ${rule} false`], runner);
   }
 }
 
@@ -229,9 +235,10 @@ function freePort(): Promise<number> {
   });
 }
 
-async function setProperties(file: string, values: Record<string, string>): Promise<void> {
-  const lines = (await readFile(file, 'utf8').catch(() => '')).split('\n').filter(line => line && !Object.keys(values).some(key => line.startsWith(`${key}=`)));
-  await writeFile(file, [...lines, ...Object.entries(values).map(([key, value]) => `${key}=${value}`)].join('\n') + '\n');
+async function setProperties(file: string, values: Record<string, string>, separator = '='): Promise<void> {
+  const lines = (await readFile(file, 'utf8').catch(() => '')).split('\n').filter(line => line && !Object.keys(values).some(key => line.startsWith(`${key}${separator}`)));
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, [...lines, ...Object.entries(values).map(([key, value]) => `${key}${separator}${value}`)].join('\n') + '\n');
 }
 
 async function readServerProcess(root: string): Promise<ServerProcess | null> {
