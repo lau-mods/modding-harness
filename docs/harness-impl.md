@@ -410,7 +410,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
     "e2eReview": {
       "command": "claude",
       "model": "claude-opus-5-5",
-      "effort": "medium"
+      "effort": "high"
     }
   },
   "runtime": {
