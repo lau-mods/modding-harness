@@ -22,8 +22,7 @@ export type SpecEditOutput = { projectMarkdown: string; summary: string };
 export type CodeReviewInput = {
   milestone: Milestone;
   criteria: AcceptanceCriterion[];
-  diff: string; // 復元基点からの Git diff
-  changedFiles: string[];
+  diff: string; // 初回は復元基点から、再確認は前回レビューからの Git diff
 };
 
 // E2E レビューの入力 (§17.1)

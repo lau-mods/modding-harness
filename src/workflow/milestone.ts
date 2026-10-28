@@ -12,7 +12,7 @@ import { e2eFailure, runE2E } from '../e2e/e2e.js';
 import type { E2ERunSummary } from '../e2e/e2e.js';
 import { resetRuntime } from '../e2e/runtime.js';
 import { gameTestFailure, runGameTests } from '../gametest/gametest.js';
-import { changedFilesFrom, createCheckpoint, diffFrom, head, restoreCheckpoint, revertLicenseFiles } from '../git/git.js';
+import { createCheckpoint, diffFrom, head, restoreCheckpoint, revertLicenseFiles, snapshotTree } from '../git/git.js';
 import { milestoneCriteria, milestoneFeatures, nextMilestone } from '../plan/plan.js';
 import type { Milestone } from '../plan/plan.js';
 import { applyResponses, applyVerdicts, createIssueSet, isSettled, openIssues } from '../review/issues.js';
@@ -83,19 +83,19 @@ export async function buildStep(ctx: WorkflowContext): Promise<boolean> {
   return await attempt(ctx, 'build', logDir => compileAndBuild(ctx.root, ctx.config.gradle, logDir, ctx.runner)) !== null;
 }
 
-// 初回は指摘集合を固定し、以降は固定済み指摘の状態だけを更新する。全指摘が resolved / accepted なら true (§14)
+// 初回は復元基点からの差分で指摘集合を固定する。以降は前回レビューからの差分で固定済み指摘の状態だけを更新し、差分が無ければ判定を引き継ぐ。全指摘が resolved / accepted なら true (§14)
 export async function codeReviewStep(ctx: WorkflowContext, milestone: Milestone): Promise<boolean> {
   await enterPhase(ctx, 'code_review');
   const current = currentMilestone(ctx);
-  const input = async (): Promise<CodeReviewInput> => ({
-    milestone,
-    criteria: milestoneCriteria(ctx.spec, milestone),
-    diff: await diffFrom(ctx.root, current.baseCommit),
-    changedFiles: await changedFilesFrom(ctx.root, current.baseCommit),
-  });
+  const tree = await snapshotTree(ctx.root);
+  // resolved の指摘の再発は前回レビュー以降の変更からしか起きないため、再確認はその差分で判定する
+  const diff = await diffFrom(ctx.root, current.codeReview ? current.codeReviewTree ?? current.baseCommit : current.baseCommit);
+  if (current.codeReview && !diff) return isSettled(current.codeReview);
+  const input: CodeReviewInput = { milestone, criteria: milestoneCriteria(ctx.spec, milestone), diff };
   current.codeReview = await review(ctx, milestone, 'code', current.codeReview,
-    async call => reviewCode(call, await input()),
-    async (call, issues) => recheckCode(call, await input(), issues));
+    call => reviewCode(call, input),
+    (call, issues) => recheckCode(call, input, issues));
+  current.codeReviewTree = tree;
   await saveContext(ctx);
   return isSettled(current.codeReview);
 }

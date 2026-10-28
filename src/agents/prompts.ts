@@ -36,7 +36,8 @@ const E2E_CONTRACT = `E2E scenario contract:
     screenshot(client, 'AC-F001-002', 'front');
   });
   command(client, text) runs a slash command as the client's operator player. camera(client, position) teleports the player to the position and rotation and waits for rendering. screenshot(client, acId, label) captures the screen for that criterion. mct(client, ...args) runs any other MC Pilot command and returns its data. waitFor(read, until, timeoutMs) polls until the observed state settles.
-- Every criterion assigned to a scenario needs at least one screenshot. Prepare scenes with deterministic commands such as /setblock, /give, /summon and /item replace.`;
+- Every criterion assigned to a scenario needs at least one screenshot. Prepare scenes with deterministic commands such as /setblock, /give, /summon and /item replace.
+- Keep the screenshots few: place the variants of a criterion (block states, materials, colors, orientations) side by side in one scene and capture them together. Take another screenshot only for a view the criterion needs that the scene cannot show, such as a GUI, a close-up or another side.`;
 
 // Codex への実装・修正指示。Code Rules・GameTest / E2E の作成指示・失敗情報または指摘を含める (§11, §12.2)
 export function implementationPrompt(input: ImplementationInput): string {
@@ -137,8 +138,6 @@ ${block('Milestone', json(input.milestone))}
 
 ${block('Target Acceptance Criteria', criteriaText(input.criteria))}
 
-${block('Changed files', input.changedFiles.join('\n'))}
-
 ${block('Git diff since the last checkpoint', input.diff)}`;
 }
 
@@ -147,12 +146,11 @@ export function codeRecheckPrompt(input: CodeReviewInput, issues: ReviewIssue[])
   return `Re-check the implementation of milestone ${input.milestone.id} of a NeoForge Minecraft mod. Read any project file you need.
 
 Judge only the issues listed below. Return one verdict per issue ID: "resolved" when the current code fixes the problem, "open" when it is not fixed or has come back. Do not report new issues.
+The diff below contains only the changes since the previous review of these issues. A resolved issue can come back only through these changes; read the current files for anything the diff does not show.
 
 ${block('Issues to check', json(issues.map(issueView)))}
 
-${block('Changed files', input.changedFiles.join('\n'))}
-
-${block('Git diff since the last checkpoint', input.diff)}`;
+${block('Git diff since the previous review', input.diff)}`;
 }
 
 // 初回 E2E レビューの指示。screenshot と AC の Expected Result から表示上の問題を列挙させる (§17.1)
@@ -175,9 +173,9 @@ Judge only the issues listed below; their targets point to screenshots of an ear
 
 ${block('Issues to check', json(issues.map(issueView)))}
 
-${block('New screenshots', screenshotList(input))}
+${block('New screenshots', screenshotList(issueInput(input, issues)))}
 
-${block('Target Acceptance Criteria', criteriaText(input.criteria))}`;
+${block('Target Acceptance Criteria', criteriaText(issueInput(input, issues).criteria))}`;
 }
 
 function block(title: string, body: string): string {
@@ -195,6 +193,17 @@ function criteriaText(criteria: AcceptanceCriterion[]): string {
 function failureText(failure: FailureReport): string {
   const files = [...failure.logs.map(file => `log: ${file}`), ...failure.screenshots.map(file => `screenshot: ${file}`)];
   return [failure.summary, failure.details && '```\n' + failure.details + '\n```', files.join('\n')].filter(Boolean).join('\n\n');
+}
+
+// 再確認する指摘の AC に絞った screenshot と AC。AC の無い指摘があれば絞らない
+function issueInput(input: E2EReviewInput, issues: ReviewIssue[]): E2EReviewInput {
+  const acIds = issues.map(issue => issue.acId);
+  if (acIds.includes(null)) return input;
+  return {
+    ...input,
+    criteria: input.criteria.filter(criterion => acIds.includes(criterion.id)),
+    scenarios: input.scenarios.map(scenario => ({ ...scenario, screenshots: scenario.screenshots.filter(shot => acIds.includes(shot.acId)) })),
+  };
 }
 
 function screenshotList(input: E2EReviewInput): string {

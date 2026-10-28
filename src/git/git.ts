@@ -8,6 +8,8 @@ import type { Milestone } from '../plan/plan.js';
 const MAX_DIFF_LENGTH = 200_000;
 // Code Review の差分から除く Harness の状態ファイル
 const EXCLUDE_STATE = `:(exclude)${STATE_DIR}`;
+// 差分の本文を載せず、変更されたパスの一覧で示す resource
+const RESOURCES = 'src/*/resources/**';
 
 // Git コマンドを実行して stdout を返す。失敗は FatalError (§23)
 export async function git(root: string, args: string[]): Promise<string> {
@@ -40,18 +42,37 @@ export async function harnessSubmoduleReady(root: string): Promise<boolean> {
   return (await run('git', ['-C', '.harness', 'status', '--porcelain', '--untracked-files=no'], { cwd: root })).stdout.trim() === '';
 }
 
-// base commit から作業ツリーまでの差分 (untracked を含む) を返す。Code Review の入力 (§14.1)
+// base (commit または tree) から作業ツリーまでの差分 (untracked を含む) を返す。ソースは全文、resource は変更されたパスの一覧にする。Code Review の入力 (§14.1)
 export async function diffFrom(root: string, base: string): Promise<string> {
   await git(root, ['add', '-A']);
-  const diff = await git(root, ['diff', '--cached', base, '--', '.', EXCLUDE_STATE]);
-  return diff.length > MAX_DIFF_LENGTH ? `${diff.slice(0, MAX_DIFF_LENGTH)}\n[diff truncated; read the changed files directly]` : diff;
+  // ソースはファイル単位で上限まで全文を載せ、載せきれないファイルは名前を明示する
+  const patches = (await git(root, ['diff', '--cached', base, '--', '.', EXCLUDE_STATE, `:(exclude,glob)${RESOURCES}`])).split(/^(?=diff --git )/m).filter(Boolean);
+  let diff = '';
+  const omitted: string[] = [];
+  for (const patch of patches) {
+    if (diff.length + patch.length <= MAX_DIFF_LENGTH) diff += patch;
+    else omitted.push(patch.match(/^diff --git a\/.* b\/(.*)$/m)?.[1] ?? patch.split('\n')[0]!);
+  }
+  // resource はディレクトリごとに変更種別とファイル名をまとめる
+  const resources = new Map<string, string[]>();
+  for (const line of (await git(root, ['diff', '--cached', '--name-status', base, '--', `:(glob)${RESOURCES}`])).split('\n').filter(Boolean)) {
+    const [status, ...files] = line.split('\t');
+    const file = files.at(-1)!;
+    resources.set(path.posix.dirname(file), [...resources.get(path.posix.dirname(file)) ?? [], `${status![0]} ${path.posix.basename(file)}`]);
+  }
+  return [
+    diff,
+    omitted.length && `[Diff of these files is not shown because of the size limit. They are not reviewed until you read them]\n${omitted.join('\n')}`,
+    resources.size && `[Changed resource files. Their content is not shown; read the ones the review depends on]\n${[...resources].map(([dir, entries]) => `${dir}/: ${entries.join(', ')}`).join('\n')}`,
+  ].filter(Boolean).join('\n\n');
 }
 
-// base commit から変更されたファイル一覧 (untracked を含む) を返す
-export async function changedFilesFrom(root: string, base: string): Promise<string[]> {
+// 現在の作業ツリーを Git の tree object として記録し、その ID を返す。Code Review 時点の状態として次の再確認の差分の基点にする
+export async function snapshotTree(root: string): Promise<string> {
   await git(root, ['add', '-A']);
-  return (await git(root, ['diff', '--cached', '--name-only', base, '--', '.', EXCLUDE_STATE])).split('\n').filter(Boolean);
+  return (await git(root, ['write-tree'])).trim();
 }
+
 
 // 指定ファイルだけを commit し、commit ID を返す。変更が無ければ HEAD を返す。仕様変更・plan 確定に使う (§9.6)
 export async function commitFiles(root: string, files: string[], message: string): Promise<string> {

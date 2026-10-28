@@ -19,6 +19,7 @@ export type MilestoneProgress = {
   failures: Record<FailurePhase, number>; // 工程ごとの連続失敗回数 (§19.2)
   recoveries: number; // 当該 milestone の recovery 回数 (§20.4)
   codeReview: IssueSet | null; // 初回 Code Review で固定した指摘集合 (§14.1)
+  codeReviewTree: string | null; // 直前の Code Review 時点の作業ツリー (git tree)。再確認ではここからの差分を渡す
   e2eReview: IssueSet | null; // 初回 E2E レビューで固定した指摘集合 (§17.1)
 };
 
@@ -61,7 +62,7 @@ export async function saveProgress(root: string, progress: Progress): Promise<vo
 
 // milestone 開始時の途中進捗を作る。recovery 回数は引き継ぐ (§20.3)
 export function newMilestoneProgress(id: string, baseCommit: string, recoveries: number): MilestoneProgress {
-  return { id, baseCommit, failures: zeroFailures(), recoveries, codeReview: null, e2eReview: null };
+  return { id, baseCommit, failures: zeroFailures(), recoveries, codeReview: null, codeReviewTree: null, e2eReview: null };
 }
 
 // 全工程の連続失敗回数が 0 の記録を返す
