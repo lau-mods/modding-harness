@@ -400,7 +400,8 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
       "command": "codex",
       "model": "gpt-6-sol",
       "effort": "medium",
-      "fast": true
+      "fast": true,
+      "provider": null
     },
     "codeReview": {
       "command": "claude",
@@ -428,6 +429,8 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 `model` と `effort` が `null` の場合、各 CLI の設定に従う。
 
 `implementation.fast` が `true` の場合、Codex を Fast tier で実行する。`false` の場合は CLI の設定に従う。
+
+`implementation.provider` は Codex が使う Responses API 互換の model provider を定義する。API キーは `envKey` の環境変数から読む。`null` の場合は CLI の設定の provider を使う。
 
 `gradle` は各工程の実行 task を指定する。
 

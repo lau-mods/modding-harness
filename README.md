@@ -73,7 +73,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "gameTest": "runGameTestServer"
   },
   "agents": {
-    "implementation": { "command": "codex", "model": "gpt-6-sol", "effort": "medium", "fast": true },
+    "implementation": { "command": "codex", "model": "gpt-6-sol", "effort": "medium", "fast": true, "provider": null },
     "codeReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "medium" },
     "e2eReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "high" }
   },
@@ -92,6 +92,15 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 }
 ```
 
+実装役を DeepSeek にする場合は、`agents.implementation` を次のようにします。Codex CLI のまま、DeepSeek の Responses API 互換の API を使います。実行するシェルで環境変数 `DEEPSEEK_API_KEY` に API キーを設定してください。
+
+```json
+"implementation": {
+  "command": "codex", "model": "deepseek-flash", "effort": "high", "fast": false,
+  "provider": { "id": "deepseek", "baseUrl": "https://api.deepseek.com/", "envKey": "DEEPSEEK_API_KEY" }
+}
+```
+
 | キー | 内容 |
 |---|---|
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
@@ -102,6 +111,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 | `agents.*.model` | 使用するモデル。`null` なら各 CLI の設定に従う |
 | `agents.*.effort` | 推論の深さ (`low` / `medium` / `high` など)。`null` なら各 CLI の設定に従う |
 | `agents.implementation.fast` | `true` なら Codex を Fast (priority) tier で実行する。`false` なら CLI の設定に従う |
+| `agents.implementation.provider` | Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` なら CLI の設定の provider (通常は OpenAI) を使う |
 | `runtime.command` | MC Pilot CLI のコマンド |
 | `runtime.server.directory` | NeoForge server のディレクトリ (Workspace root からの相対パス) |
 | `runtime.server.command` | server の起動コマンド (`directory` 内で実行) |

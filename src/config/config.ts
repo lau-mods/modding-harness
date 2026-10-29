@@ -13,8 +13,11 @@ export type GradleConfig = { compile: string; build: string; gameTest: string };
 // Codex / Claude CLI の呼び出し設定。model / effort が null なら CLI の設定に従う (§8)
 export type AgentConfig = { command: string; model: string | null; effort: string | null };
 
-// Codex の呼び出し設定。fast が true なら Fast (priority) tier で実行し、false なら CLI の設定に従う
-export type CodexConfig = AgentConfig & { fast: boolean };
+// Codex が使う Responses API 互換の model provider。id は Codex 上の provider 名、envKey は API キーを読む環境変数
+export type ProviderConfig = { id: string; baseUrl: string; envKey: string };
+
+// Codex の呼び出し設定。fast が true なら Fast (priority) tier で実行し、false なら CLI の設定に従う。provider が null なら CLI の設定の provider を使う
+export type CodexConfig = AgentConfig & { fast: boolean; provider: ProviderConfig | null };
 
 // Harness が起動する NeoForge dedicated server。directory は Workspace root からの相対パス、address は host:port (§16.2)
 export type ServerConfig = { directory: string; command: string[]; address: string; world: string };
@@ -66,6 +69,9 @@ export function checkConfig(value: unknown): string[] {
   const agents = ['implementation', 'codeReview', 'e2eReview'].map(name => `agents.${name}`);
   for (const key of ['gradle.compile', 'gradle.build', 'gradle.gameTest', ...agents.map(agent => `${agent}.command`), 'runtime.command']) text(key);
   if (typeof get('agents.implementation.fast') !== 'boolean') problems.push('agents.implementation.fast must be true or false');
+  if (get('agents.implementation.provider') !== null) {
+    for (const key of ['id', 'baseUrl', 'envKey']) text(`agents.implementation.provider.${key}`);
+  }
   for (const key of agents.flatMap(agent => [`${agent}.model`, `${agent}.effort`])) {
     const field = get(key);
     if (field !== null && (typeof field !== 'string' || !field)) problems.push(`${key} must be null or a non-empty string`);
@@ -93,7 +99,7 @@ export function defaultConfig(): HarnessConfig {
   return {
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
-      implementation: { command: 'codex', model: 'gpt-6-sol', effort: 'medium', fast: true },
+      implementation: { command: 'codex', model: 'gpt-6-sol', effort: 'medium', fast: true, provider: null },
       codeReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'medium' },
       e2eReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'high' },
     },

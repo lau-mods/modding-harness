@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { CodexConfig } from '../config/config.js';
+import type { CodexConfig, ProviderConfig } from '../config/config.js';
 import type { FailureReport } from '../core/errors.js';
 import { FatalError } from '../core/errors.js';
 import type { Milestone } from '../plan/plan.js';
@@ -36,9 +36,20 @@ export function codexArgs(call: AgentCall<CodexConfig>, request: AgentRequest, s
     ...(call.config.model ? ['--model', call.config.model] : []),
     ...(call.config.effort ? ['-c', `model_reasoning_effort="${call.config.effort}"`] : []),
     ...(call.config.fast ? ['-c', 'service_tier="priority"'] : []),
+    ...providerArgs(call.config.provider),
     '--output-schema', schemaFile,
     '--output-last-message', outputFile,
     '-',
+  ];
+}
+
+// provider を ~/.codex/config.toml に書かずに、Codex の設定の上書きとして定義して選ぶ
+function providerArgs(provider: ProviderConfig | null): string[] {
+  if (!provider) return [];
+  const definition = { name: provider.id, base_url: provider.baseUrl, wire_api: 'responses', env_key: provider.envKey };
+  return [
+    '-c', `model_provider=${JSON.stringify(provider.id)}`,
+    ...Object.entries(definition).flatMap(([key, value]) => ['-c', `model_providers.${provider.id}.${key}=${JSON.stringify(value)}`]),
   ];
 }
 

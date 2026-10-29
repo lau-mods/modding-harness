@@ -32,7 +32,11 @@ export async function doctor(root: string, runner: Runner): Promise<Diagnostic[]
 
 // Codex / Claude CLI が実行でき、認証が利用可能か確認する (§9.3)
 export async function checkAgents(root: string, config: HarnessConfig, runner: Runner): Promise<Diagnostic[]> {
-  const codex = await probe(root, 'Codex', config.agents.implementation.command, ['login', 'status'], runner);
+  const { command, provider } = config.agents.implementation;
+  // 独自の provider は OpenAI のログインではなく、API キーの環境変数で認証する
+  const codex = !provider ? await probe(root, 'Codex', command, ['login', 'status'], runner)
+    : process.env[provider.envKey] ? await probe(root, `Codex (${provider.id})`, command, ['--version'], runner)
+    : { name: `Codex (${provider.id})`, status: 'misconfigured' as const, detail: `Set ${provider.envKey} to the ${provider.id} API key` };
   const claudes = await Promise.all([...new Set([config.agents.codeReview.command, config.agents.e2eReview.command])].map(async command => {
     const claude = await probe(root, `Claude (${command})`, command, ['auth', 'status'], runner);
     // claude auth status は終了コード 0 のまま未ログインを JSON で返す
