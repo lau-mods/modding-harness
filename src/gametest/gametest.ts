@@ -47,7 +47,8 @@ export function gameTestFailure(result: GameTestResult, criteria: AcceptanceCrit
       item.details,
     ].filter(Boolean).join('\n');
   });
-  if (!failed.length) details.push(`GameTest task failed:\n${result.output}`);
+  // missing の原因 (GameTest の compile 失敗や server crash) は task の出力にしか現れないため常に併記する
+  details.push(`GameTest task output:\n${result.output}`);
   const summary = failed.length ? `${failed.length} GameTest testcase(s) did not pass` : 'GameTest task failed';
   return new ExecutionFailure(summary, details.join('\n\n'), gradleLogs(result.logDir));
 }

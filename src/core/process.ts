@@ -15,11 +15,11 @@ export type Runner = (command: string, args: string[], options: ProcessOptions) 
 // 外部コマンドを argv のまま実行する。executable が無ければ FatalError、timeout は ExecutionFailure (§19.1, §23)
 export async function run(command: string, args: string[], options: ProcessOptions): Promise<ProcessResult> {
   const started = Date.now();
+  let timedOut = false;
   const result = await new Promise<ProcessResult>((resolve, reject) => {
     // timeout 時に子孫 process ごと停止できるよう、独立した process group で起動する
     const child = spawn(command, args, { cwd: options.cwd, env: { ...process.env, ...options.env }, stdio: 'pipe', detached: true });
     const stdout: Buffer[] = [], stderr: Buffer[] = [];
-    let timedOut = false;
     const timer = options.timeoutMs === undefined ? undefined : setTimeout(() => {
       timedOut = true;
       try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* 既に終了している */ }
@@ -34,9 +34,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
     });
     child.on('close', code => {
       clearTimeout(timer);
-      const output = { code: code ?? 1, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8'), durationMs: Date.now() - started };
-      if (timedOut) reject(new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`, tail(output.stderr + output.stdout, 4000)));
-      else resolve(output);
+      resolve({ code: code ?? 1, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8'), durationMs: Date.now() - started });
     });
     child.stdin.end(options.input ?? '');
   });
@@ -45,6 +43,11 @@ export async function run(command: string, args: string[], options: ProcessOptio
     await writeFile(path.join(options.logDir, 'command.json'), JSON.stringify({ command, args, cwd: options.cwd, code: result.code, durationMs: result.durationMs }, null, 2) + '\n');
     await writeFile(path.join(options.logDir, 'stdout.log'), result.stdout);
     await writeFile(path.join(options.logDir, 'stderr.log'), result.stderr);
+  }
+  // timeout でも log を保存してから失敗にする
+  if (timedOut) {
+    const logs = options.logDir ? [path.join(options.logDir, 'stdout.log'), path.join(options.logDir, 'stderr.log')] : [];
+    throw new ExecutionFailure(`${path.basename(command)} timed out after ${options.timeoutMs} ms`, tail(result.stderr + result.stdout, 4000), logs);
   }
   return result;
 }
