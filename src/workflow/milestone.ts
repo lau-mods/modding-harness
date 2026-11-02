@@ -73,7 +73,6 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
   await guardIntegrity(ctx);
   if (current.codeReview) current.codeReview = applyResponses(current.codeReview, output.responses);
   if (current.e2eReview) current.e2eReview = applyResponses(current.e2eReview, output.responses);
-  current.failure = null;
   await saveContext(ctx);
 }
 
