@@ -77,7 +77,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "implementation": {
       "command": "codex",
       "initial": { "model": "gpt-6-sol", "effort": "high" },
-      "retry": { "model": "gpt-6.1-terra", "effort": "medium" },
+      "retry": { "model": "gpt-6-sol", "effort": "medium" },
       "fast": true,
       "provider": null
     },

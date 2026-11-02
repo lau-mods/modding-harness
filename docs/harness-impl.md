@@ -404,7 +404,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
     "implementation": {
       "command": "codex",
       "initial": { "model": "gpt-6-sol", "effort": "high" },
-      "retry": { "model": "gpt-6.1-terra", "effort": "medium" },
+      "retry": { "model": "gpt-6-sol", "effort": "medium" },
       "fast": true,
       "provider": null
     },
