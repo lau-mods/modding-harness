@@ -55,6 +55,7 @@ Rules:
 - Never create, modify or delete a file whose name contains LICENSE or LICENCE; the harness discards such changes.
 - Committed files and the built jar are published. Never write environment-specific or personal information into them: absolute paths, user or machine names, e-mail addresses, credentials, or per-asset license, attribution and credit notes.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
+- Run Gradle from the project root with ./gradlew as a standalone command. The harness provides .codex/rules/harness-gradle.rules to allow that command outside the sandbox; do not edit this rule. Avoid shell wrappers, absolute executable paths, or inline environment assignments for Gradle.
 - Follow the code style below in every change, including repairs.
 - Files outside the mod sources (Java sources, resources under src/, GameTests, tests/e2e/ and tests/acceptance.json), such as README, gradle.properties, build.gradle, settings.gradle and mod metadata, keep their content: change them only when a target Acceptance Criterion or the GameTest/E2E setup cannot work otherwise, and then change only the lines it needs, without rewriting, reformatting or reordering the rest.
 ${feedback.length ? `- Resolve every item in the feedback below with the smallest change that fixes it.

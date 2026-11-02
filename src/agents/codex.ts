@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CodexConfig, ProviderConfig } from '../config/config.js';
 import type { FailureReport } from '../core/errors.js';
@@ -32,6 +32,7 @@ export function codexArgs(call: AgentCall<CodexConfig>, request: AgentRequest, s
     ...request.images.flatMap(image => ['--image', image]),
     '--sandbox', 'workspace-write', '--skip-git-repo-check', '--ephemeral',
     '-c', 'approval_policy="never"',
+    '-c', `projects.${JSON.stringify(path.resolve(call.root))}.trust_level="trusted"`,
     '--cd', call.root,
     ...(call.config.model ? ['--model', call.config.model] : []),
     ...(call.config.effort ? ['-c', `model_reasoning_effort="${call.config.effort}"`] : []),
@@ -55,6 +56,9 @@ function providerArgs(provider: ProviderConfig | null): string[] {
 
 // Codex CLI を実行して構造化出力を得る。失敗は FatalError (§23)
 export async function runCodex<T>(call: AgentCall<CodexConfig>, request: AgentRequest): Promise<T> {
+  const rulesDir = path.join(call.root, '.codex', 'rules');
+  await mkdir(rulesDir, { recursive: true });
+  await writeFile(path.join(rulesDir, 'harness-gradle.rules'), 'prefix_rule(pattern = ["./gradlew"], decision = "allow")\n');
   const schemaFile = path.join(call.logDir, 'schema.json');
   const outputFile = path.join(call.logDir, 'output.json');
   await writeFile(schemaFile, JSON.stringify(outputSchema(request.role), null, 2));
