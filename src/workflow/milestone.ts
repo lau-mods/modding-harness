@@ -67,7 +67,8 @@ export async function implementationStep(ctx: WorkflowContext, milestone: Milest
     codeIssues: openIssues(current.codeReview),
     e2eIssues: openIssues(current.e2eReview),
   };
-  const output = await recordRun(ctx.root, milestone.id, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir), input));
+  const retry = Boolean(input.failure || input.codeIssues.length || input.e2eIssues.length);
+  const output = await recordRun(ctx.root, milestone.id, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir, retry), input));
   await revertLicenseFiles(ctx.root);
   await guardIntegrity(ctx);
   if (current.codeReview) current.codeReview = applyResponses(current.codeReview, output.responses);
@@ -181,6 +182,6 @@ async function review(
   }
   const targets = set.issues.filter(issue => issue.status !== 'accepted');
   if (!targets.length) return set;
-  const verdicts = await recordRun(ctx.root, milestone.id, `${kind}_recheck`, logDir => recheck(agentCall(ctx, `${kind}Review`, logDir), targets));
+  const verdicts = await recordRun(ctx.root, milestone.id, `${kind}_recheck`, logDir => recheck(agentCall(ctx, `${kind}Review`, logDir, true), targets));
   return applyVerdicts(set, verdicts);
 }

@@ -1,6 +1,6 @@
 import type { AgentCall } from '../agents/agent.js';
 import { loadConfig } from '../config/config.js';
-import type { HarnessConfig } from '../config/config.js';
+import type { AgentConfig, CodexConfig, HarnessConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
 import { assertIntegrity, captureBaseline } from '../core/integrity.js';
 import type { IntegrityBaseline } from '../core/integrity.js';
@@ -23,6 +23,9 @@ export type WorkflowContext = {
   runner: Runner;
   baseline: IntegrityBaseline; // 開始時の Harness 本体・PROJECT.md・plan の fingerprint
 };
+
+// develop で繰り返し実行する agent ごとの、1 回分の呼び出し設定
+type RepeatedCalls = { implementation: CodexConfig; codeReview: AgentConfig; e2eReview: AgentConfig };
 
 // config / PROJECT.md / plan / progress を読み込み、固定対象の fingerprint を記録する。読めなければ FatalError (§6.3, §23)
 export async function openContext(root: string, runner: Runner): Promise<WorkflowContext> {
@@ -51,9 +54,10 @@ export async function guardIntegrity(ctx: WorkflowContext): Promise<void> {
   await assertIntegrity(ctx.root, ctx.baseline);
 }
 
-// 役割に対応する agent 設定で AgentCall を作る
-export function agentCall<K extends keyof HarnessConfig['agents']>(ctx: WorkflowContext, agent: K, logDir: string): AgentCall<HarnessConfig['agents'][K]> {
-  return { config: ctx.config.agents[agent], root: ctx.root, logDir, runner: ctx.runner };
+// 役割に対応する agent 設定で AgentCall を作る。retry なら 2 回目以降の model / effort を使う (§8)
+export function agentCall<K extends keyof RepeatedCalls>(ctx: WorkflowContext, agent: K, logDir: string, retry = false): AgentCall<RepeatedCalls[K]> {
+  const config = ctx.config.agents[agent];
+  return { config: { ...config, ...config[retry ? 'retry' : 'initial'] } as unknown as RepeatedCalls[K], root: ctx.root, logDir, runner: ctx.runner };
 }
 
 // 進行中 milestone の途中進捗を返す

@@ -73,9 +73,24 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "gameTest": "runGameTestServer"
   },
   "agents": {
-    "implementation": { "command": "codex", "model": "gpt-6-sol", "effort": "medium", "fast": true, "provider": null },
-    "codeReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "medium" },
-    "e2eReview": { "command": "claude", "model": "claude-sonnet-5-5", "effort": "high" }
+    "plan": { "command": "claude", "model": "claude-opus-5-5", "effort": "high" },
+    "implementation": {
+      "command": "codex",
+      "initial": { "model": "gpt-6-sol", "effort": "high" },
+      "retry": { "model": "gpt-6.1-terra", "effort": "medium" },
+      "fast": true,
+      "provider": null
+    },
+    "codeReview": {
+      "command": "claude",
+      "initial": { "model": "claude-opus-5-5", "effort": "medium" },
+      "retry": { "model": "claude-sonnet-5-5", "effort": "medium" }
+    },
+    "e2eReview": {
+      "command": "claude",
+      "initial": { "model": "claude-opus-5-5", "effort": "high" },
+      "retry": { "model": "claude-sonnet-5-5", "effort": "high" }
+    }
   },
   "runtime": {
     "command": "mct",
@@ -96,7 +111,10 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 ```json
 "implementation": {
-  "command": "codex", "model": "deepseek-flash", "effort": "high", "fast": false,
+  "command": "codex",
+  "initial": { "model": "deepseek-flash", "effort": "high" },
+  "retry": { "model": "deepseek-flash", "effort": "medium" },
+  "fast": false,
   "provider": { "id": "deepseek", "baseUrl": "https://api.deepseek.com/", "envKey": "DEEPSEEK_API_KEY" }
 }
 ```
@@ -104,12 +122,14 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 | キー | 内容 |
 |---|---|
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
+| `agents.plan` | `plan` / `chat` に使う Claude |
 | `agents.implementation` | 実装・修正に使う Codex |
-| `agents.codeReview` | Code Review と、`plan` / `chat` に使う Claude |
+| `agents.codeReview` | Code Review に使う Claude |
 | `agents.e2eReview` | E2E の screenshot レビューに使う Claude |
 | `agents.*.command` | Codex / Claude CLI のコマンド |
-| `agents.*.model` | 使用するモデル。`null` なら各 CLI の設定に従う |
-| `agents.*.effort` | 推論の深さ (`low` / `medium` / `high` など)。`null` なら各 CLI の設定に従う |
+| `agents.implementation.initial` / `retry`、`agents.codeReview.initial` / `retry`、`agents.e2eReview.initial` / `retry` | milestone 内の初回に使う `model` / `effort` と、2 回目以降に使う `model` / `effort`。recovery 後は再び `initial` から始める |
+| `model` | 使用するモデル。`null` なら各 CLI の設定に従う |
+| `effort` | 推論の深さ (`low` / `medium` / `high` など)。`null` なら各 CLI の設定に従う |
 | `agents.implementation.fast` | `true` なら Codex を Fast (priority) tier で実行する。`false` なら CLI の設定に従う |
 | `agents.implementation.provider` | Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` なら CLI の設定の provider (通常は OpenAI) を使う |
 | `runtime.command` | MC Pilot CLI のコマンド |

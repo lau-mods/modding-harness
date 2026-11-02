@@ -13,6 +13,12 @@ export type GradleConfig = { compile: string; build: string; gameTest: string };
 // Codex / Claude CLI の呼び出し設定。model / effort が null なら CLI の設定に従う (§8)
 export type AgentConfig = { command: string; model: string | null; effort: string | null };
 
+// agent が使う model と effort の組
+export type ModelConfig = Pick<AgentConfig, 'model' | 'effort'>;
+
+// milestone 内で繰り返し実行する agent の設定。initial を初回、retry を 2 回目以降に使う (§8)
+export type RepeatedAgent<C extends AgentConfig> = Omit<C, keyof ModelConfig> & { initial: ModelConfig; retry: ModelConfig };
+
 // Codex が使う Responses API 互換の model provider。id は Codex 上の provider 名、envKey は API キーを読む環境変数
 export type ProviderConfig = { id: string; baseUrl: string; envKey: string };
 
@@ -35,9 +41,10 @@ export type RuntimeConfig = {
 export type HarnessConfig = {
   gradle: GradleConfig;
   agents: {
-    implementation: CodexConfig; // 実装・修正
-    codeReview: AgentConfig; // Code Review と、plan / chat
-    e2eReview: AgentConfig; // E2E の screenshot レビュー
+    plan: AgentConfig; // plan / chat
+    implementation: RepeatedAgent<CodexConfig>; // 実装・修正
+    codeReview: RepeatedAgent<AgentConfig>; // Code Review
+    e2eReview: RepeatedAgent<AgentConfig>; // E2E の screenshot レビュー
   };
   runtime: RuntimeConfig;
 };
@@ -66,13 +73,15 @@ export function checkConfig(value: unknown): string[] {
     const field = get(key);
     if (!Array.isArray(field) || !field.every(item => typeof item === 'string' && item)) problems.push(`${key} must be an array of non-empty strings`);
   };
-  const agents = ['implementation', 'codeReview', 'e2eReview'].map(name => `agents.${name}`);
+  const repeatedAgents = ['implementation', 'codeReview', 'e2eReview'].map(name => `agents.${name}`);
+  const agents = ['agents.plan', ...repeatedAgents];
   for (const key of ['gradle.compile', 'gradle.build', 'gradle.gameTest', ...agents.map(agent => `${agent}.command`), 'runtime.command']) text(key);
   if (typeof get('agents.implementation.fast') !== 'boolean') problems.push('agents.implementation.fast must be true or false');
   if (get('agents.implementation.provider') !== null) {
     for (const key of ['id', 'baseUrl', 'envKey']) text(`agents.implementation.provider.${key}`);
   }
-  for (const key of agents.flatMap(agent => [`${agent}.model`, `${agent}.effort`])) {
+  const models = ['agents.plan', ...repeatedAgents.flatMap(agent => [`${agent}.initial`, `${agent}.retry`])];
+  for (const key of models.flatMap(model => [`${model}.model`, `${model}.effort`])) {
     const field = get(key);
     if (field !== null && (typeof field !== 'string' || !field)) problems.push(`${key} must be null or a non-empty string`);
   }
@@ -99,9 +108,10 @@ export function defaultConfig(): HarnessConfig {
   return {
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
-      implementation: { command: 'codex', model: 'gpt-6-sol', effort: 'medium', fast: true, provider: null },
-      codeReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'medium' },
-      e2eReview: { command: 'claude', model: 'claude-sonnet-5-5', effort: 'high' },
+      plan: { command: 'claude', model: 'claude-opus-5-5', effort: 'high' },
+      implementation: { command: 'codex', initial: { model: 'gpt-6-sol', effort: 'high' }, retry: { model: 'gpt-6.1-terra', effort: 'medium' }, fast: true, provider: null },
+      codeReview: { command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'medium' }, retry: { model: 'claude-sonnet-5-5', effort: 'medium' } },
+      e2eReview: { command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'high' }, retry: { model: 'claude-sonnet-5-5', effort: 'high' } },
     },
     runtime: { command: 'mct', server: null, clients: [], deploy: [], logs: [] },
   };

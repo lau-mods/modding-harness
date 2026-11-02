@@ -37,7 +37,7 @@ export async function checkAgents(root: string, config: HarnessConfig, runner: R
   const codex = !provider ? await probe(root, 'Codex', command, ['login', 'status'], runner)
     : process.env[provider.envKey] ? await probe(root, `Codex (${provider.id})`, command, ['--version'], runner)
     : { name: `Codex (${provider.id})`, status: 'misconfigured' as const, detail: `Set ${provider.envKey} to the ${provider.id} API key` };
-  const claudes = await Promise.all([...new Set([config.agents.codeReview.command, config.agents.e2eReview.command])].map(async command => {
+  const claudes = await Promise.all([...new Set([config.agents.plan.command, config.agents.codeReview.command, config.agents.e2eReview.command])].map(async command => {
     const claude = await probe(root, `Claude (${command})`, command, ['auth', 'status'], runner);
     // claude auth status は終了コード 0 のまま未ログインを JSON で返す
     const status = claude.status === 'ok' ? parseJson(claude.detail) as { loggedIn?: boolean; authMethod?: string } | null : null;

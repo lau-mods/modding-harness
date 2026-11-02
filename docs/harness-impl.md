@@ -396,22 +396,27 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
     "gameTest": "runGameTestServer"
   },
   "agents": {
+    "plan": {
+      "command": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
     "implementation": {
       "command": "codex",
-      "model": "gpt-6-sol",
-      "effort": "medium",
+      "initial": { "model": "gpt-6-sol", "effort": "high" },
+      "retry": { "model": "gpt-6.1-terra", "effort": "medium" },
       "fast": true,
       "provider": null
     },
     "codeReview": {
       "command": "claude",
-      "model": "claude-sonnet-5-5",
-      "effort": "medium"
+      "initial": { "model": "claude-opus-5-5", "effort": "medium" },
+      "retry": { "model": "claude-sonnet-5-5", "effort": "medium" }
     },
     "e2eReview": {
       "command": "claude",
-      "model": "claude-sonnet-5-5",
-      "effort": "high"
+      "initial": { "model": "claude-opus-5-5", "effort": "high" },
+      "retry": { "model": "claude-sonnet-5-5", "effort": "high" }
     }
   },
   "runtime": {
@@ -424,9 +429,11 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 }
 ```
 
-`agents` は役割ごとに使用する agent を指定する。`implementation` は Codex implementation、`codeReview` は Claude Code Review と `plan` / `chat`、`e2eReview` は Claude E2E レビューに使用する。
+`agents` は役割ごとに使用する agent を指定する。`plan` は `plan` / `chat`、`implementation` は Codex implementation、`codeReview` は Claude Code Review、`e2eReview` は Claude E2E レビューに使用する。
 
 `model` と `effort` が `null` の場合、各 CLI の設定に従う。
+
+`implementation`、`codeReview`、`e2eReview` では、`initial` の `model` と `effort` を milestone 内の初回に、`retry` の `model` と `effort` を 2 回目以降に使用する。Implementation の 2 回目以降は実行失敗または未解決の指摘を修正する実行、レビューの 2 回目以降は修正レビューを指す。recovery は milestone を最初からやり直すため、再び `initial` から始める。`provider` は初回と 2 回目以降で共通とする。
 
 `implementation.fast` が `true` の場合、Codex を Fast tier で実行する。`false` の場合は CLI の設定に従う。
 
