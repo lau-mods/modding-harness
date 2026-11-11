@@ -238,10 +238,16 @@ node .harness/dist/cli/main.js develop
 ### 3. 仕様を変更する
 
 ```sh
-node .harness/dist/cli/main.js chat "加工機の処理時間を5秒に変更する"
+node .harness/dist/cli/main.js chat "銅棒をかまどの燃料にできるようにする"
 ```
 
-Claude が `PROJECT.md` を更新します。Harness はその内容を検証して commit し、active であれば新しい計画と progress を作って commit します。仕様の変更と計画の作成は、`develop` を始める前か、正常に完了した後に行ってください。milestone の途中では実行できません。
+Claude が `PROJECT.md` を更新します。Harness はその内容を検証して commit し、active であれば計画と progress を作って commit します。`PROJECT.md` を直接編集して `plan` を実行しても同じです。仕様の変更と計画の作成は、`develop` を始める前か、正常に完了した後に行ってください。milestone の途中では実行できません。
+
+完成済みの milestone があるときは、既存の計画をそのまま残し、計画に無い Feature だけを続きの milestone (`M04` など) として追加します。完成済みの milestone と progress の完成記録は保たれ、次の `develop` では追加した milestone だけを実行します。
+
+計画に無い Feature が無ければ、計画は変わりません。
+
+完成済みの milestone が無いときは、すべての Feature を計画し直します。
 
 ## 開発の流れ
 

@@ -1,4 +1,5 @@
 import type { FailureReport } from '../core/errors.js';
+import { milestoneId } from '../plan/plan.js';
 import type { ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
 import type { CodeReviewInput, ConflictReviewInput, E2EReviewInput, PlanInput, SpecEditInput } from './claude.js';
@@ -82,20 +83,21 @@ ${block('PROJECT.md', input.projectMarkdown)}
 Respond with a summary of the change, the changed file paths, and one response per review issue listed above.`;
 }
 
-// Feature を milestone に割り当てる計画案を Claude に作らせる指示 (§6.2)
+// Feature を milestone に割り当てる計画案を Claude に作らせる指示。計画済み milestone があれば、その続きを作らせる (§6.2, §9.6)
 export function planPrompt(input: PlanInput): string {
   return `You plan the development of a NeoForge Minecraft mod. Read the project files you need.
 
 Split the Features below into milestones:
 - Assign every Feature to exactly one milestone. All Acceptance Criteria of a Feature are completed in its milestone; never split a Feature.
 - A milestone may contain several Features. Put Features that share implementation into the same milestone.
-- Order milestones by the dependencies between Features. Number them M01, M02, M03, ... in execution order; dependsOn lists the milestones whose results the milestone builds on.
+- Order milestones by the dependencies between Features. Number them ${milestoneId(input.planned.length)}, ${milestoneId(input.planned.length + 1)}, ... in execution order; dependsOn lists the milestones whose results the milestone builds on.${input.planned.length ? `
+- The planned milestones below are already implemented. Return only the new milestones; dependsOn may list planned milestones.` : ''}
 - Milestones whose dependsOn are all completed are implemented in parallel in separate working trees and merged afterwards. List in dependsOn every milestone whose classes, registrations or resources the milestone uses or extends, and keep independent milestones on separate files where the design allows.
 - approach describes how the milestone is implemented. scope lists the files or areas expected to change.
 - Global Requirements in PROJECT.md apply to every Feature they concern and are part of that milestone.
 
 ${block('Features', input.features.map(feature => feature.markdown).join('\n\n'))}
-
+${input.planned.length ? `\n${block('Planned milestones', json(input.planned))}\n` : ''}
 ${block('Project files', input.projectFiles.join('\n'))}
 
 ${block('PROJECT.md', input.projectMarkdown)}`;

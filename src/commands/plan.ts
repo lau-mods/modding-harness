@@ -8,14 +8,14 @@ import { projectPaths } from '../core/paths.js';
 import type { Runner } from '../core/process.js';
 import { recordRun } from '../core/runs.js';
 import { commitFiles, git } from '../git/git.js';
-import { checkPlan, savePlan } from '../plan/plan.js';
+import { checkPlan, loadPlan, savePlan } from '../plan/plan.js';
 import type { Plan } from '../plan/plan.js';
 import { checkActiveConditions, checkSpec } from '../spec/check.js';
 import { readProject } from '../spec/parser.js';
 import type { ProjectSpec } from '../spec/types.js';
 import { initialProgress, loadProgress, saveProgress } from '../state/progress.js';
 
-// active な PROJECT.md から plan を生成し、初期 progress と共に保存して commit で確定する (§6.2, §9)
+// active な PROJECT.md から plan を生成し、progress と共に保存して commit で確定する (§6.2, §9)
 export async function planProject(root: string, runner: Runner): Promise<Plan> {
   return withLock(root, async () => {
     await requireIdle(root);
@@ -27,25 +27,31 @@ export async function planProject(root: string, runner: Runner): Promise<Plan> {
   });
 }
 
-// Claude に plan 案を作らせて検証する。不正な plan は FatalError (§6.2)
+// Claude に plan 案を作らせて検証する。完成済み milestone があれば既存の plan に、plan に無い Feature の milestone を追記する。不正な plan は FatalError (§6.2, §9.6)
 export async function createPlan(root: string, spec: ProjectSpec, config: HarnessConfig, runner: Runner): Promise<Plan> {
+  const planned = (await loadProgress(root))?.completed.length ? (await loadPlan(root))?.milestones ?? [] : [];
+  const assigned = new Set(planned.flatMap(milestone => milestone.features));
+  const features = spec.features.filter(feature => !assigned.has(feature.id));
+  if (planned.length && !features.length) return { milestones: planned };
   const input = {
     projectMarkdown: spec.text,
-    features: spec.features,
+    features,
     projectFiles: (await git(root, ['ls-files'])).split('\n').filter(Boolean),
+    planned,
   };
   const proposal = await recordRun(root, null, 'plan', logDir => proposePlan({ config: config.agents.plan, root, logDir, runner }, input));
-  const plan: Plan = { milestones: proposal.milestones };
+  const plan: Plan = { milestones: [...planned, ...proposal.milestones] };
   const problems = checkPlan(plan, spec);
   if (problems.length) throw new FatalError(`Claude proposed an invalid plan:\n- ${problems.join('\n- ')}`);
   return plan;
 }
 
-// plan.json と初期 progress.json を保存し、PROJECT.md と共に commit する。初回 milestone の復元基点になる (§10.1, §20.2)
+// plan.json と、完成済み milestone を引き継いだ progress.json を保存し、PROJECT.md と共に commit する。次に開始する milestone の復元基点になる (§9.6, §10.1, §20.2)
 export async function commitPlan(root: string, plan: Plan, message: string): Promise<string> {
   const paths = projectPaths(root);
+  const previous = await loadProgress(root);
   await savePlan(root, plan);
-  await saveProgress(root, initialProgress());
+  await saveProgress(root, { ...initialProgress(), completed: previous?.completed ?? [], lastCheckpoint: previous?.lastCheckpoint ?? null });
   return commitFiles(root, [paths.spec, paths.plan, paths.progress].map(file => path.relative(root, file)), message);
 }
 

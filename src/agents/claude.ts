@@ -9,8 +9,8 @@ import { agentFailure, outputSchema, runAgentProcess, validateOutput } from './a
 import type { AgentCall, AgentRequest } from './agent.js';
 import { codeRecheckPrompt, codeReviewPrompt, conflictReviewPrompt, e2eRecheckPrompt, e2eReviewPrompt, planPrompt, specEditPrompt } from './prompts.js';
 
-// 計画作成の入力 (§6.2)
-export type PlanInput = { projectMarkdown: string; features: Feature[]; projectFiles: string[] };
+// 計画作成の入力。planned は追記先の計画済み milestone (§6.2, §9.6)
+export type PlanInput = { projectMarkdown: string; features: Feature[]; projectFiles: string[]; planned: Milestone[] };
 
 // 仕様変更の入力 (§9.6)
 export type SpecEditInput = { request: string; projectMarkdown: string };

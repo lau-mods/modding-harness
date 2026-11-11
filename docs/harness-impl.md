@@ -293,7 +293,7 @@ Milestone の分割では、機能間の依存関係と実装順序を考慮す�
 
 ### 6.2 Plan 生成
 
-`harness plan` は `PROJECT.md` のすべての Feature を milestone に割り当てる。
+`harness plan` は `PROJECT.md` のすべての Feature を milestone に割り当てる。完成済みの milestone がある場合の扱いは §9.6 に従う。
 
 各 milestone には次を設定する。
 
@@ -521,12 +521,16 @@ node .harness/dist/cli/main.js init
 `chat` は自然言語の製品要求を `PROJECT.md` に反映する。
 
 ```sh
-harness chat "加工機の処理時間を5秒に変更する"
+harness chat "加工機の燃料に石炭ブロックを追加する"
 ```
 
 変更後の仕様を検証し、仕様変更 commit を作成する。
 
-その後、新しい plan と progress を生成して計画を確定する。
+その後、plan と progress を生成して計画を確定する。
+
+完成済みの milestone がある場合、既存の plan を維持し、plan に無い Feature だけを続きの milestone ID で追加する。完成済み milestone は `progress.json` の完成済み milestone として保持し、追加した milestone は完成済み milestone に依存できる。追加する Feature が無ければ plan を変更しない。
+
+完成済みの milestone が無い場合は、すべての Feature を割り当てる plan を新たに生成し、progress を初期化する。
 
 仕様変更は `develop` の開始前または正常完了後に行う。
 
