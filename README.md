@@ -67,7 +67,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 ```json
 {
-  "parallel": 2,
+  "parallel": 3,
   "gradle": {
     "compile": "classes",
     "build": "build",
@@ -122,7 +122,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 | キー | 内容 |
 |---|---|
-| `parallel` | 同時に進める milestone の上限 (省略時 2)。`1` なら一つずつ進める。各 milestone が Gradle と GameTest server を個別に動かすため、マシンのメモリに合わせて決める |
+| `parallel` | 同時に進める milestone の上限 (省略時 3)。`1` なら一つずつ進める。各 milestone が Gradle と GameTest server を個別に動かすため、マシンのメモリに合わせて決める |
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
 | `agents.plan` | `plan` / `chat` に使う Claude |
 | `agents.implementation` | 実装・修正に使う Codex |
