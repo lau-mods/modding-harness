@@ -623,6 +623,7 @@ Codex は対象 milestone の完成に必要な Java ソース、resource、Game
 Code style:
 - Implement exactly what the target Acceptance Criteria require; other behavior belongs to its own milestone.
 - Use vanilla Minecraft and NeoForge mechanisms (registries, JSON resources, existing base classes) before custom code.
+- Generate JSON data such as recipes, loot tables, tags, models and lang files with data generation (data providers run by runData) instead of writing them by hand, and commit the generated files.
 - Never generate textures with runData. When creating textures, do not draw new shapes; only reuse existing item textures from the mod or its dependencies, recolor them, crop them, or combine these operations.
 - Keep one direct path per behavior: small classes, direct calls, inline values until a second use appears.
 - Introduce an abstraction, helper or config option only when two call sites use it now.
