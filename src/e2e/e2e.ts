@@ -11,8 +11,8 @@ import type { ScenarioResult } from './scenario.js';
 // E2E 工程の実行結果。表示内容の合否は Claude の E2E レビューで決める (§16.4)
 export type E2ERunSummary = { scenarios: ScenarioResult[]; logs: string[]; logDir: string };
 
-// Mod 配置 → server / client 起動 → 各 scenario 実行 → 結果保存 → 停止 の lifecycle で E2E を実行する。起動失敗は log を添えた ExecutionFailure (§16.2)
-export async function runE2E(root: string, config: RuntimeConfig, mappings: E2EMapping[], modJar: string, logDir: string, runner: Runner): Promise<E2ERunSummary> {
+// Mod 配置 → server / client 起動 → 各 scenario 実行 → 結果保存 → 停止 の lifecycle で E2E を実行する。runtime は Workspace の root、scenario は milestone の worktree の dir から使う。起動失敗は log を添えた ExecutionFailure (§16.2)
+export async function runE2E(root: string, dir: string, config: RuntimeConfig, mappings: E2EMapping[], modJar: string, logDir: string, runner: Runner): Promise<E2ERunSummary> {
   await deployMod(root, config, modJar);
   const runtimeLogDir = path.join(logDir, 'runtime');
   const scenarios: ScenarioResult[] = [];
@@ -20,7 +20,7 @@ export async function runE2E(root: string, config: RuntimeConfig, mappings: E2EM
   try {
     const session = await startRuntime(root, config, runtimeLogDir, runner);
     for (const scenario of groupScenarios(mappings)) {
-      scenarios.push(await runScenario(root, config, scenario, session, path.join(logDir, 'scenarios', scenario.id.replace(/[^\w.-]+/g, '-')), runner));
+      scenarios.push(await runScenario(root, dir, config, scenario, session, path.join(logDir, 'scenarios', scenario.id.replace(/[^\w.-]+/g, '-')), runner));
     }
   } catch (error) {
     if (!(error instanceof ExecutionFailure)) throw error;

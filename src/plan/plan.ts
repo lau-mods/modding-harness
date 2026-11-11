@@ -67,9 +67,10 @@ export function orderMilestones(plan: Plan): Milestone[] {
   return order;
 }
 
-// 完成済みでない milestone のうち、実行順で最初のものを返す。全て完成していれば null (§10.2)
-export function nextMilestone(plan: Plan, completed: string[]): Milestone | null {
-  return orderMilestones(plan).find(milestone => !completed.includes(milestone.id)) ?? null;
+// 完成済みでも実行中でもなく、依存先がすべて完成した milestone を実行順に返す。これらは互いに独立して並列に進められる (§10.2, §10.3)
+export function readyMilestones(plan: Plan, completed: string[], running: string[]): Milestone[] {
+  return orderMilestones(plan).filter(milestone => !completed.includes(milestone.id) && !running.includes(milestone.id)
+    && milestone.dependsOn.every(dependency => completed.includes(dependency)));
 }
 
 // milestone に所属する Feature を PROJECT.md から求める (§6.2)

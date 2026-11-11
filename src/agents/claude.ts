@@ -40,6 +40,7 @@ export function claudeArgs(call: AgentCall, request: AgentRequest): string[] {
     '--json-schema', JSON.stringify(outputSchema(request.role)),
     '--tools', 'Read,Grep,Glob',
     '--permission-mode', 'dontAsk',
+    ...(call.readDirs ?? []).flatMap(dir => ['--add-dir', dir]),
     ...(call.config.model ? ['--model', call.config.model] : []),
     ...(call.config.effort ? ['--effort', call.config.effort] : []),
   ];

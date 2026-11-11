@@ -37,7 +37,7 @@ export async function validateProject(root: string): Promise<ValidationReport> {
   return { spec, problems };
 }
 
-// progress の完成済み milestone・現在 milestone・checkpoint が plan と Git 履歴に整合するか検査する (§9.4)
+// progress の完成済み milestone・進行中の milestone・checkpoint が plan と Git 履歴に整合するか検査する (§9.4)
 export async function checkProgress(root: string, progress: Progress, plan: Plan): Promise<string[]> {
   const problems: string[] = [];
   const ids = plan.milestones.map(milestone => milestone.id);
@@ -52,10 +52,15 @@ export async function checkProgress(root: string, progress: Progress, plan: Plan
   for (const id of progress.completed) {
     if (!await findCheckpoint(root, id)) problems.push(`No checkpoint commit exists for completed milestone ${id}`);
   }
-  if (progress.current) {
-    if (!ids.includes(progress.current.id)) problems.push(`progress.json has an unknown current milestone ${progress.current.id}`);
-    if (progress.completed.includes(progress.current.id)) problems.push(`Current milestone ${progress.current.id} is already completed`);
-    if (!await commitExists(root, progress.current.baseCommit)) problems.push(`The restore point ${progress.current.baseCommit} of ${progress.current.id} does not exist`);
+  for (const current of progress.active) {
+    if (!ids.includes(current.id)) problems.push(`progress.json has an unknown milestone in progress ${current.id}`);
+    if (progress.completed.includes(current.id)) problems.push(`Milestone ${current.id} in progress is already completed`);
+    if (progress.active.filter(item => item.id === current.id).length > 1) problems.push(`progress.json lists ${current.id} in progress twice`);
+    const dependencies = plan.milestones.find(item => item.id === current.id)?.dependsOn ?? [];
+    for (const dependency of dependencies) {
+      if (!progress.completed.includes(dependency)) problems.push(`${current.id} is in progress before its dependency ${dependency} is completed`);
+    }
+    if (!await commitExists(root, current.baseCommit)) problems.push(`The restore point ${current.baseCommit} of ${current.id} does not exist`);
   }
   if (progress.lastCheckpoint && !await commitExists(root, progress.lastCheckpoint)) problems.push(`The last checkpoint ${progress.lastCheckpoint} does not exist`);
   if (progress.status === 'complete' && ids.some(id => !progress.completed.includes(id))) problems.push('progress.json is complete, but some milestones are not completed');

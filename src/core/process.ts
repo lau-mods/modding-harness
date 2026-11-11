@@ -6,14 +6,15 @@ import { ExecutionFailure, FatalError } from './errors.js';
 // 外部コマンドの終了結果
 export type ProcessResult = { code: number; stdout: string; stderr: string; durationMs: number };
 
-// 外部コマンドの実行設定。logDir を指定すると command.json と stdout/stderr をそこへ保存する
-export type ProcessOptions = { cwd: string; input?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; logDir?: string };
+// 外部コマンドの実行設定。logDir を指定すると command.json と stdout/stderr をそこへ保存する。signal が中断されると process group ごと停止する
+export type ProcessOptions = { cwd: string; input?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; logDir?: string; signal?: AbortSignal };
 
 // テストで差し替え可能な外部コマンド実行関数
 export type Runner = (command: string, args: string[], options: ProcessOptions) => Promise<ProcessResult>;
 
-// 外部コマンドを argv のまま実行する。executable が無ければ FatalError、timeout は ExecutionFailure (§19.1, §23)
+// 外部コマンドを argv のまま実行する。executable が無ければ FatalError、timeout は ExecutionFailure、signal による中断は FatalError (§19.1, §23)
 export async function run(command: string, args: string[], options: ProcessOptions): Promise<ProcessResult> {
+  if (options.signal?.aborted) throw stopped(options.signal);
   const started = Date.now();
   let timedOut = false;
   const result = await new Promise<ProcessResult>((resolve, reject) => {
@@ -24,6 +25,9 @@ export async function run(command: string, args: string[], options: ProcessOptio
       timedOut = true;
       try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* 既に終了している */ }
     }, options.timeoutMs);
+    const abort = (): void => { try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* 既に終了している */ } };
+    options.signal?.addEventListener('abort', abort, { once: true });
+    child.on('close', () => options.signal?.removeEventListener('abort', abort));
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
     child.stdin.on('error', () => {});
@@ -44,6 +48,7 @@ export async function run(command: string, args: string[], options: ProcessOptio
     await writeFile(path.join(options.logDir, 'stdout.log'), result.stdout);
     await writeFile(path.join(options.logDir, 'stderr.log'), result.stderr);
   }
+  if (options.signal?.aborted) throw stopped(options.signal);
   // timeout でも log を保存してから失敗にする
   if (timedOut) {
     const logs = options.logDir ? [path.join(options.logDir, 'stdout.log'), path.join(options.logDir, 'stderr.log')] : [];
@@ -56,6 +61,11 @@ export async function run(command: string, args: string[], options: ProcessOptio
 export function requireSuccess(result: ProcessResult, operation: string): ProcessResult {
   if (result.code !== 0) throw new ExecutionFailure(`${operation} failed (exit ${result.code})`, tail(result.stderr + result.stdout, 4000));
   return result;
+}
+
+// signal の中断理由を FatalError にする
+function stopped(signal: AbortSignal): FatalError {
+  return signal.reason instanceof FatalError ? signal.reason : new FatalError(String(signal.reason ?? 'The workflow was stopped'));
 }
 
 // 文字列の末尾 length 文字を返す

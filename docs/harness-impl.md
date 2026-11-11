@@ -4,7 +4,7 @@
 
 Modding Harness は、NeoForge Mod の製品仕様に基づき、AI による実装、ビルド、コードレビュー、GameTest、E2E、Git checkpoint の作成を自動実行するローカル開発ハーネスである。
 
-Harness は開発対象を milestone に分割し、各 milestone を順番に実装・確認する。完成した milestone は Git commit として確定する。
+Harness は開発対象を milestone に分割し、依存関係を満たした milestone を並列に実装・確認する。完成した milestone は Git commit として確定する。
 
 各 milestone の基本工程は次のとおりとする。
 
@@ -347,7 +347,7 @@ Harness が開発状態を保持する専用ファイルは、次の二つを基
 | ファイル | 内容 |
 |---|---|
 | `.harness-state/plan.json` | 確定した milestone plan |
-| `.harness-state/progress.json` | 開発進捗、現在工程、再試行回数、Claude 指摘事項 |
+| `.harness-state/progress.json` | 開発進捗、進行中 milestone ごとの工程・再試行回数・Claude 指摘事項 |
 
 両ファイルを Workspace の Git 管理対象とする。
 
@@ -362,7 +362,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 | ディレクトリ | 内容 |
 |---|---|
 | `.harness-state/runs/` | Gradle log、GameTest report、screenshot、Claude/Codex 結果 |
-| `.harness-state/runtime/` | Minecraft runtime、検証用 world、Mod 配置先、一時データ |
+| `.harness-state/runtime/` | Minecraft runtime、検証用 world、Mod 配置先、milestone ごとの git worktree、一時データ |
 
 各実行結果は run ごとに区別して保存する。
 
@@ -372,13 +372,9 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 `progress.json` は少なくとも次を管理する。
 
-- 現在の milestone
-- 現在の工程
-- 完成した milestone
-- 各工程の連続失敗回数
-- 当該 milestone の recovery 回数
-- Code Review の初回指摘一覧と状態
-- E2E の初回指摘一覧と状態
+- 進行中の milestone (並列に複数)
+- 進行中 milestone ごとの工程、復元基点、各工程の連続失敗回数、recovery 回数、Code Review と E2E の初回指摘一覧と状態
+- 完成した milestone (checkpoint の順)
 - 直前 checkpoint
 - 全体の実行状態
 
@@ -390,6 +386,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 ```json
 {
+  "parallel": 2,
   "gradle": {
     "compile": "classes",
     "build": "build",
@@ -438,6 +435,8 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 `implementation.fast` が `true` の場合、Codex を Fast tier で実行する。`false` の場合は CLI の設定に従う。
 
 `implementation.provider` は Codex が使う Responses API 互換の model provider を定義する。API キーは `envKey` の環境変数から読む。`null` の場合は CLI の設定の provider を使う。
+
+`parallel` は同時に進める milestone の上限とする。1 以上の整数で、省略時は 3 とする。1 の場合は milestone を一つずつ進める。
 
 `gradle` は各工程の実行 task を指定する。
 
@@ -539,7 +538,7 @@ harness chat "加工機の処理時間を5秒に変更する"
 
 - `PROJECT.md` が active
 - Plan が確定している
-- Git working tree が clean
+- Git working tree が clean (`progress.json` の変更を除く)
 - Harness submodule が利用可能
 - Codex と Claude が利用可能
 - Gradle と GameTest の実行環境が構成済み
@@ -563,6 +562,33 @@ Harness は plan に定義された依存関係を満たす順序で milestone �
 E2E は描画に関する AC を含む milestone で実行する。
 
 各工程に修正が発生した場合は、変更後のコードに対して compile/build から関連工程を再実行する。
+
+### 10.3 並列実行
+
+依存 milestone がすべて完成した milestone は ready とする。Harness は ready な milestone を `parallel` 件まで同時に進める。
+
+```text
+M01 → M02, M01 → M03 の場合
+
+M01 ──checkpoint──┬── M02 (worktree) ──┐
+                  └── M03 (worktree) ──┴── 先に完成した方から checkpoint
+```
+
+各 milestone は `.harness-state/runtime/worktrees/<Milestone ID>` に作る専用の git worktree で実装・確認する。worktree は開始時点の Workspace の HEAD (直前 checkpoint) を detached HEAD で checkout し、これを復元基点とする。Workspace の作業ツリーは checkpoint の作成以外では変更しない。
+
+Minecraft runtime は一組のため、E2E と runtime の初期化は一つの milestone ずつ実行する。待機中の milestone は他の工程を止めない。
+
+工程 6 の Git Checkpoint の前に統合を行う。
+
+1. Workspace の HEAD が復元基点のままなら、worktree の変更と progress を Workspace に取り込み checkpoint commit を作る。worktree は削除する
+2. 並列に進んだ他の milestone の checkpoint で HEAD が進んでいれば、その HEAD を worktree へ merge し、HEAD を新しい復元基点とする
+3. 衝突が無ければ Compile / Build から検証をやり直す。Code Review の再確認には merge 後の変更だけを渡す
+4. 衝突があれば conflict marker を残したまま、衝突したファイルを実行失敗として Codex implementation へ渡す。Conflict marker が残る間の Compile / Build は失敗とする
+5. 検証が済んだら再び統合する
+
+Checkpoint は一つずつ作成し、依存関係を満たす順に `progress.json` の完成済み milestone へ追加する。
+
+Milestone の一つで fatal error が発生した場合、Harness は他の milestone で実行中の agent、Gradle、runtime を停止して終了する。各 milestone の worktree と途中進捗は保持し、再実行時に引き継ぐ。
 
 ## 11. Codex Implementation
 
@@ -982,7 +1008,7 @@ Claude review で `open` issue が存在する状態は、この実行失敗回�
 
 ### 20.2 復元処理
 
-Recovery では現在の milestone で作成・変更した作業途中の内容を破棄し、直前の checkpoint の状態へ復元する。
+Recovery では当該 milestone の worktree で作成・変更した作業途中の内容を破棄し、復元基点の状態へ復元する。他の milestone の worktree には影響しない。
 
 ```text
 Retry 3 Failure
@@ -998,7 +1024,7 @@ Milestone Restart
 
 最初の milestone では、確定済み plan を含む開発開始時の commit を復元基点とする。
 
-2件目以降の milestone では、直前の完成済み milestone の checkpoint を復元基点とする。
+2件目以降の milestone では、milestone を開始した時点、または直近の統合で取り込んだ時点の Workspace の checkpoint を復元基点とする。
 
 ### 20.3 初期化対象
 
@@ -1064,13 +1090,13 @@ Features: F-001
 Acceptance-Criteria: AC-F001-001, AC-F001-002
 ```
 
-Checkpoint は次の milestone の開始基点となる。
+Checkpoint は以降に開始する milestone の開始基点となり、並列に進行中の milestone は統合でこれを取り込む (§10.3)。
 
 ## 22. Progress と Status
 
 `progress.json` は現在の workflow 状態を保持する。
 
-Milestone の phase は次の値とする。
+進行中 milestone ごとの phase は次の値とする。
 
 ```text
 idle
@@ -1079,6 +1105,7 @@ build
 code_review
 gametest
 e2e
+integration
 checkpoint
 recovery
 complete
@@ -1090,19 +1117,19 @@ fatal
 ```text
 Project
 Current Commit
-Current Milestone
-Current Phase
+Active Milestones
+
+(進行中 milestone ごとに)
+  Phase
+  Build Retry Count
+  GameTest Retry Count
+  E2E Retry Count
+  Milestone Recovery Count
+  Open Code Review Issues
+  Open E2E Issues
 
 Completed Milestones
 Remaining Milestones
-
-Build Retry Count
-GameTest Retry Count
-E2E Retry Count
-Milestone Recovery Count
-
-Open Code Review Issues
-Open E2E Issues
 
 Last Checkpoint
 Overall Status
@@ -1129,7 +1156,7 @@ Fatal error は、Harness の開発 workflow を継続するための基本条�
 
 通常の Compile / Build、GameTest、E2E の失敗は修正再試行および recovery によって処理する。
 
-Fatal error が発生した場合、Harness は処理を終了し、原因と発生工程を表示する。
+Fatal error が発生した場合、Harness は処理を終了し、原因と発生した milestone・工程を表示する。
 
 ## 24. 完了条件
 

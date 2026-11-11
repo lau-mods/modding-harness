@@ -52,8 +52,9 @@ export async function commitPlan(root: string, plan: Plan, message: string): Pro
 // 仕様変更と plan の作成は develop の開始前または正常完了後に限る。milestone の途中進捗があれば拒否する (§6.3, §9.6)
 export async function requireIdle(root: string): Promise<void> {
   const progress = await loadProgress(root);
-  if (progress?.current) {
-    throw new Error(`Milestone ${progress.current.id} is in progress; finish develop, or restore the last checkpoint, before changing the specification or plan`);
+  if (progress?.active.length) {
+    const ids = progress.active.map(item => item.id).join(', ');
+    throw new Error(`Milestone ${ids} is in progress; finish develop, or restore the last checkpoint, before changing the specification or plan`);
   }
 }
 

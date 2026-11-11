@@ -39,15 +39,15 @@ export function groupScenarios(mappings: E2EMapping[]): ScenarioDefinition[] {
   return [...scenarios.values()];
 }
 
-// scenario を node で実行し、結果ファイルを読む。process 失敗・結果欠落・screenshot 欠落は success: false の結果にする (§16.4)
-export async function runScenario(root: string, config: RuntimeConfig, scenario: ScenarioDefinition, session: RuntimeSession, logDir: string, runner: Runner): Promise<ScenarioResult> {
+// scenario を dir (milestone の worktree) から node で実行し、結果ファイルを読む。MC Pilot の状態は Workspace の root に置く。process 失敗・結果欠落・screenshot 欠落は success: false の結果にする (§16.4)
+export async function runScenario(root: string, dir: string, config: RuntimeConfig, scenario: ScenarioDefinition, session: RuntimeSession, logDir: string, runner: Runner): Promise<ScenarioResult> {
   const resultFile = path.join(logDir, 'result.json');
   const screenshotDir = path.join(logDir, 'screenshots');
   await mkdir(screenshotDir, { recursive: true });
   const failed = (error: string): ScenarioResult => ({ scenarioId: scenario.id, acIds: scenario.acIds, success: false, screenshots: [], error, logDir });
   try {
-    const execution = await runner(process.execPath, [path.resolve(root, scenario.file)], {
-      cwd: root, env: scenarioEnv(root, config, session, scenario, resultFile, screenshotDir), logDir, timeoutMs: SCENARIO_TIMEOUT_MS,
+    const execution = await runner(process.execPath, [path.resolve(dir, scenario.file)], {
+      cwd: dir, env: scenarioEnv(root, config, session, scenario, resultFile, screenshotDir), logDir, timeoutMs: SCENARIO_TIMEOUT_MS,
     });
     if (execution.code !== 0) return failed(`Scenario exited with ${execution.code}: ${tail(execution.stderr + execution.stdout, 2000)}`);
     const result = parseScenarioResult(await readJson(resultFile), scenario, screenshotDir, logDir);

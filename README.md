@@ -67,6 +67,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 ```json
 {
+  "parallel": 2,
   "gradle": {
     "compile": "classes",
     "build": "build",
@@ -121,6 +122,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 | キー | 内容 |
 |---|---|
+| `parallel` | 同時に進める milestone の上限 (省略時 2)。`1` なら一つずつ進める。各 milestone が Gradle と GameTest server を個別に動かすため、マシンのメモリに合わせて決める |
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
 | `agents.plan` | `plan` / `chat` に使う Claude |
 | `agents.implementation` | 実装・修正に使う Codex |
@@ -225,7 +227,7 @@ node .harness/dist/cli/main.js develop
 開始時に次の条件を確認し、満たさない場合は何も変更せずに終了します。
 
 - `PROJECT.md` が active で、計画と整合している
-- Git の作業ツリーが clean である (途中で止まった milestone を再開する場合を除く。下記「中断・fatal error からの再開」を参照)
+- Git の作業ツリーが clean である (`progress.json` の変更を除く。下記「中断・fatal error からの再開」を参照)
 - `.harness` submodule が記録された revision のまま、変更されていない
 - `node .harness/dist/cli/main.js doctor` のすべての項目が `ok` である
 
@@ -255,6 +257,18 @@ Codex Implementation → Compile / Build → Claude Code Review → GameTest →
 4. **GameTest**：Gradle の GameTest task を実行し、JUnit XML report を `tests/acceptance.json` と照合します。
 5. **E2E**：描画に関する AC がある milestone で実行します。シナリオが撮影した screenshot を Claude がレビューし、初回の指摘 (`ER-001` …) を固定します。
 6. **Checkpoint**：すべて完了したら、実装と progress をまとめて commit します。
+
+### 並列実行
+
+依存する milestone がすべて完成した milestone は、`parallel` 件まで同時に進めます。たとえば `M01 → M02`、`M01 → M03` の計画では、M01 の checkpoint の後に M02 と M03 を並列に実装します。
+
+- 各 milestone は `.harness-state/runtime/worktrees/<Milestone ID>` の専用 git worktree で実装・検証します。Workspace の作業ツリーは checkpoint を作るとき以外は変わりません。
+- Minecraft runtime は一組なので、E2E だけは一つずつ順に実行します。
+- 先に完成した milestone から checkpoint を作ります。後から完成した milestone は、その checkpoint を自分の worktree に merge してから compile / build 以降を検証し直し、通れば checkpoint を作ります。
+- merge で衝突したら、conflict marker を残したまま衝突したファイルの一覧を Codex に渡して解消させます。marker が残っている間は build を失敗として扱います。
+- Code Review の再確認には merge 後の変更 (衝突の解消) だけを渡します。取り込んだ他の milestone の変更は、レビュー済みとして扱います。
+
+衝突を減らせるよう、`plan` の Claude には、依存しあう Feature を `dependsOn` で明示し、独立した milestone では別のファイルを使うよう指示しています。
 
 ```text
 Harness checkpoint M01
@@ -340,25 +354,25 @@ await scenario(async ({ clients }) => {
 | パス | Git | 内容 |
 |---|---|---|
 | `.harness-state/plan.json` | 管理する | 確定した milestone 計画 |
-| `.harness-state/progress.json` | 管理する | 現在の milestone と工程、完成した milestone、連続失敗回数、recovery 回数、レビュー指摘、直前の checkpoint、全体の状態 |
+| `.harness-state/progress.json` | 管理する | 進行中の milestone ごとの工程・連続失敗回数・recovery 回数・レビュー指摘、完成した milestone、直前の checkpoint、全体の状態 |
 | `.harness-state/runs/` | 管理しない | 実行ごとの Gradle log、GameTest report、screenshot、Codex / Claude の入出力 |
-| `.harness-state/runtime/` | 管理しない | MC Pilot の home、server のプロセス情報、配置した jar の記録、lock |
+| `.harness-state/runtime/` | 管理しない | MC Pilot の home、server のプロセス情報、配置した jar の記録、lock、milestone ごとの git worktree (`worktrees/`) |
 
 `progress.json` は実行中に随時更新され、各 checkpoint に含まれます。最後の checkpoint には `complete` 状態の progress が含まれます。
 
 ## 中断・fatal error からの再開
 
-`develop` が途中で止まった場合 (fatal error、Ctrl-C、PC の停止など)、作業ツリーには作業途中の変更と更新された `progress.json` が残ります。fatal error の原因と発生工程は `node .harness/dist/cli/main.js status` で確認できます。
+`develop` が途中で止まった場合 (fatal error、Ctrl-C、PC の停止など)、進行中だった各 milestone の worktree には作業途中の変更が残り、Workspace には更新された `progress.json` が残ります。一つの milestone が fatal error になると、並列に進めていた他の milestone も中断します。fatal error の原因と、それが起きた milestone・工程は `node .harness/dist/cli/main.js status` で確認できます。
 
-原因を取り除いたら、そのまま再実行します。作業途中の変更、レビュー指摘、失敗回数、直前の実行失敗を引き継ぎ、止まった milestone の Codex implementation から再開します。
+原因を取り除いたら、そのまま再実行します。作業途中の変更、レビュー指摘、失敗回数、直前の実行失敗を引き継いで、止まった各 milestone を Codex implementation から再開します。worktree が無い milestone は最初からやり直します。
 
 ```sh
 node .harness/dist/cli/main.js develop
 ```
 
-再開するには、HEAD がその milestone の開始時点のままで、`PROJECT.md` と `plan.json` が HEAD から変更されていない必要があります。
+再開するには、各 worktree の HEAD がその milestone の復元基点のままで、worktree の `PROJECT.md` と `plan.json` が HEAD から変更されていない必要があります。並列実行を導入する前の形式の `progress.json` で milestone が途中だった場合は、Workspace に残る作業途中の変更をその milestone の worktree へ移して再開します。
 
-作業途中の変更を捨てて milestone を最初からやり直す場合は、直前の checkpoint に戻してから実行します。`.harness-state/runs/` と `.harness-state/runtime/` は Git 管理外なので、この操作では消えません。
+作業途中の変更を捨てて milestone を最初からやり直す場合は、直前の checkpoint に戻してから実行します。`progress.json` が checkpoint の状態に戻るため、残っている worktree は次の開始時に作り直されます。`.harness-state/runs/` と `.harness-state/runtime/` は Git 管理外なので、この操作では消えません。
 
 ```sh
 git reset --hard && git clean -fd

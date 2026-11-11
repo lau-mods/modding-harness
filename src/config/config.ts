@@ -39,6 +39,7 @@ export type RuntimeConfig = {
 
 // .harness-config.json の内容 (§8)
 export type HarnessConfig = {
+  parallel: number; // 同時に進める milestone の上限 (§10.3)
   gradle: GradleConfig;
   agents: {
     plan: AgentConfig; // plan / chat
@@ -56,7 +57,9 @@ export async function loadConfig(root: string): Promise<HarnessConfig> {
   catch (error) { throw new FatalError(`Cannot read ${CONFIG_FILE}: ${(error as Error).message}`); }
   const problems = checkConfig(value);
   if (problems.length) throw new FatalError(`Invalid ${CONFIG_FILE}:\n- ${problems.join('\n- ')}`);
-  return JSON.parse(JSON.stringify(value), (_, item: unknown) => typeof item === 'string' && item.startsWith('~/') ? path.join(homedir(), item.slice(2)) : item) as HarnessConfig;
+  const config = JSON.parse(JSON.stringify(value), (_, item: unknown) => typeof item === 'string' && item.startsWith('~/') ? path.join(homedir(), item.slice(2)) : item) as HarnessConfig;
+  // parallel の追加前に書き出した設定ファイルには無いため、既定値で補う
+  return { ...config, parallel: config.parallel ?? defaultConfig().parallel };
 }
 
 // 任意の値を HarnessConfig として検証し、問題点を列挙する (§9.4)
@@ -73,6 +76,8 @@ export function checkConfig(value: unknown): string[] {
     const field = get(key);
     if (!Array.isArray(field) || !field.every(item => typeof item === 'string' && item)) problems.push(`${key} must be an array of non-empty strings`);
   };
+  const parallel = get('parallel');
+  if (parallel !== undefined && !(Number.isInteger(parallel) && (parallel as number) >= 1)) problems.push('parallel must be an integer of 1 or more');
   const repeatedAgents = ['implementation', 'codeReview', 'e2eReview'].map(name => `agents.${name}`);
   const agents = ['agents.plan', ...repeatedAgents];
   for (const key of ['gradle.compile', 'gradle.build', 'gradle.gameTest', ...agents.map(agent => `${agent}.command`), 'runtime.command']) text(key);
@@ -106,6 +111,7 @@ export function checkRuntimeConfig(config: RuntimeConfig): string[] {
 // init / create 時に書き出す既定の設定を返す。runtime の server と client は利用者が構成する (§8)
 export function defaultConfig(): HarnessConfig {
   return {
+    parallel: 3,
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
       plan: { command: 'claude', model: 'claude-opus-5-5', effort: 'high' },

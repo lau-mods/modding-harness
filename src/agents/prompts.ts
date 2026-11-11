@@ -90,6 +90,7 @@ Split the Features below into milestones:
 - Assign every Feature to exactly one milestone. All Acceptance Criteria of a Feature are completed in its milestone; never split a Feature.
 - A milestone may contain several Features. Put Features that share implementation into the same milestone.
 - Order milestones by the dependencies between Features. Number them M01, M02, M03, ... in execution order; dependsOn lists the milestones whose results the milestone builds on.
+- Milestones whose dependsOn are all completed are implemented in parallel in separate working trees and merged afterwards. List in dependsOn every milestone whose classes, registrations or resources the milestone uses or extends, and keep independent milestones on separate files where the design allows.
 - approach describes how the milestone is implemented. scope lists the files or areas expected to change.
 - Global Requirements in PROJECT.md apply to every Feature they concern and are part of that milestone.
 
