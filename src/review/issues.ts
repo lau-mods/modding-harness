@@ -27,6 +27,12 @@ export function createIssueSet(kind: IssueKind, findings: ReviewFinding[]): Issu
   return { kind, issues: findings.map((finding, index) => ({ ...finding, id: issueId(kind, index), status: 'open', history: [] })) };
 }
 
+// 固定済みの指摘集合に、後から行った初回レビュー (統合の衝突解消のレビュー) の指摘を続きの ID で加える (§14.3)
+export function addFindings(set: IssueSet, findings: ReviewFinding[]): IssueSet {
+  const added = createIssueSet(set.kind, [...set.issues, ...findings]).issues.slice(set.issues.length);
+  return { ...set, issues: [...set.issues, ...added] };
+}
+
 // 修正レビューの判定を固定済み指摘にだけ反映する。集合に無い ID の判定と accepted の指摘は変更しない (§14.2, §17.2)
 export function applyVerdicts(set: IssueSet, verdicts: IssueVerdict[]): IssueSet {
   const at = new Date().toISOString();

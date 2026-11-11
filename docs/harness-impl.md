@@ -583,7 +583,7 @@ Minecraft runtime は一組のため、E2E と runtime の初期化は一つの 
 1. Workspace の HEAD が復元基点のままなら、worktree の変更と progress を Workspace に取り込み checkpoint commit を作る。worktree は削除する
 2. 並列に進んだ他の milestone の checkpoint で HEAD が進んでいれば、その HEAD を worktree へ merge し、HEAD を新しい復元基点とする
 3. 衝突が無ければ Compile / Build から検証をやり直す。Code Review の再確認には merge 後の変更だけを渡す
-4. 衝突があれば conflict marker を残したまま、衝突したファイルを実行失敗として Codex implementation へ渡す。Conflict marker が残る間の Compile / Build は失敗とする
+4. 衝突があれば conflict marker を残したまま、衝突したファイルを実行失敗として Codex implementation へ渡す。Conflict marker が残る間の Compile / Build は失敗とする。解消後の Code Review では解消内容を初回レビューする (§14.3)
 5. 検証が済んだら再び統合する
 
 Checkpoint は一つずつ作成し、依存関係を満たす順に `progress.json` の完成済み milestone へ追加する。
@@ -717,6 +717,21 @@ Claude Follow-up Review
 すべての issue が `resolved` または `accepted` になるまで修正とレビューを繰り返す。
 
 レビュー指摘の解消を目的とするループには回数上限を設けない。
+
+### 14.3 衝突解消のレビュー
+
+統合で衝突が発生した milestone では (§10.3)、衝突の解消後の Code Review で、修正レビューに加えて解消内容の初回レビューを行う。
+
+Claude には conflict marker を含む merge 直後の状態からの差分と、衝突したファイルを渡す。
+
+確認観点は次のとおりとする。
+
+- 取り込んだ milestone と当該 milestone のどちらかの変更 (登録、resource、GameTest、AC 対応情報など) が失われていない
+- 同じ定義が重複していない
+- Conflict marker が残っていない
+- Code Rules への適合
+
+指摘は既存の issue set に続きの ID で追加し、以降は他の指摘と同じく修正レビューで状態を更新する。
 
 ## 15. GameTest
 

@@ -267,6 +267,7 @@ Codex Implementation → Compile / Build → Claude Code Review → GameTest →
 - 先に完成した milestone から checkpoint を作ります。後から完成した milestone は、その checkpoint を自分の worktree に merge してから compile / build 以降を検証し直し、通れば checkpoint を作ります。
 - merge で衝突したら、conflict marker を残したまま衝突したファイルの一覧を Codex に渡して解消させます。marker が残っている間は build を失敗として扱います。
 - Code Review の再確認には merge 後の変更 (衝突の解消) だけを渡します。取り込んだ他の milestone の変更は、レビュー済みとして扱います。
+- 衝突を解消した後の Code Review では、解消内容を Claude が初回レビューします。両側の変更が失われていないか、定義が重複していないかなどを確認し、指摘は既存の指摘に続く ID (`CR-004` など) で追加します。
 
 衝突を減らせるよう、`plan` の Claude には、依存しあう Feature を `dependsOn` で明示し、独立した milestone では別のファイルを使うよう指示しています。
 

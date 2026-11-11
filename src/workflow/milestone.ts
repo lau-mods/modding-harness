@@ -2,7 +2,7 @@ import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { checkAcceptance, checkMilestoneCoverage, e2eFor, gameTestsFor, loadAcceptance } from '../acceptance/acceptance.js';
 import type { AgentCall } from '../agents/agent.js';
-import { recheckCode, recheckE2E, reviewCode, reviewE2E } from '../agents/claude.js';
+import { recheckCode, recheckE2E, reviewCode, reviewConflicts, reviewE2E } from '../agents/claude.js';
 import type { CodeReviewInput, E2EReviewInput } from '../agents/claude.js';
 import { implement } from '../agents/codex.js';
 import { compileAndBuild, findModJar } from '../build/gradle.js';
@@ -19,7 +19,7 @@ import {
 } from '../git/git.js';
 import { milestoneCriteria, milestoneFeatures } from '../plan/plan.js';
 import type { Milestone } from '../plan/plan.js';
-import { applyResponses, applyVerdicts, createIssueSet, isSettled, openIssues } from '../review/issues.js';
+import { addFindings, applyResponses, applyVerdicts, createIssueSet, isSettled, openIssues } from '../review/issues.js';
 import type { IssueKind, IssueSet, IssueVerdict, ReviewFinding, ReviewIssue } from '../review/issues.js';
 import { newMilestoneProgress } from '../state/progress.js';
 import { agentCall, currentMilestone, enterPhase, guardIntegrity, replaceMilestone, saveContext } from './context.js';
@@ -123,7 +123,8 @@ export async function buildStep(ctx: MilestoneContext): Promise<boolean> {
   return built;
 }
 
-// 初回は復元基点からの差分で指摘集合を固定する。以降は前回レビューからの差分で固定済み指摘の状態だけを更新し、差分が無ければ判定を引き継ぐ。全指摘が resolved / accepted なら true (§14)
+// 初回は復元基点からの差分で指摘集合を固定する。以降は前回レビューからの差分で固定済み指摘の状態だけを更新し、差分が無ければ判定を引き継ぐ。
+// 統合の衝突を解消した後は、解消の差分を初回レビューして指摘を集合に加える。全指摘が resolved / accepted なら true (§14, §14.3)
 export async function codeReviewStep(ctx: MilestoneContext): Promise<boolean> {
   const { milestone } = ctx;
   await enterPhase(ctx, 'code_review');
@@ -131,11 +132,18 @@ export async function codeReviewStep(ctx: MilestoneContext): Promise<boolean> {
   const tree = await snapshotTree(ctx.dir);
   // resolved の指摘の再発は前回レビュー以降の変更からしか起きないため、再確認はその差分で判定する
   const diff = await diffFrom(ctx.dir, current.codeReview ? current.codeReviewTree ?? current.baseCommit : current.baseCommit);
-  if (current.codeReview && !diff) return isSettled(current.codeReview);
+  // modify/delete の衝突は merge 結果のまま解消でき差分が出ないことがあるため、衝突解消のレビューが残っていれば省略しない
+  if (current.codeReview && !diff && !current.reviewConflicts.length) return isSettled(current.codeReview);
   const input: CodeReviewInput = { milestone, criteria: milestoneCriteria(ctx.spec, milestone), diff };
   current.codeReview = await review(ctx, 'code', current.codeReview,
     call => reviewCode(call, input),
     (call, issues) => recheckCode(call, input, issues));
+  if (current.reviewConflicts.length) {
+    const conflictInput = { ...input, conflicts: current.reviewConflicts };
+    const findings = await recordRun(ctx.root, milestone.id, 'conflict_review', logDir => reviewConflicts(agentCall(ctx, 'codeReview', logDir), conflictInput));
+    current.codeReview = addFindings(current.codeReview, findings);
+    current.reviewConflicts = [];
+  }
   current.codeReviewTree = tree;
   await saveContext(ctx);
   return isSettled(current.codeReview);
@@ -197,9 +205,10 @@ export async function integrateStep(ctx: MilestoneContext): Promise<Integration>
     const conflicts = await mergeIntoWorktree(ctx.dir, latest);
     process.stderr.write(`[harness] ${current.id} merged ${latest}${conflicts.length ? ` with ${conflicts.length} conflict(s)` : ''}\n`);
     current.baseCommit = latest;
-    // 取り込んだ他の milestone の変更はレビュー済みのため、Code Review の再確認には衝突の解消以降の変更だけを渡す
+    // 取り込んだ他の milestone の変更はレビュー済みのため、Code Review には conflict marker を含む merge 直後からの変更 (衝突の解消) だけを渡す
     current.codeReviewTree = await snapshotTree(ctx.dir);
     current.conflicts = conflicts;
+    current.reviewConflicts = [...new Set([...current.reviewConflicts, ...conflicts])];
     if (conflicts.length) {
       current.failure = {
         phase: 'integration',

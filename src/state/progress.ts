@@ -25,6 +25,7 @@ export type MilestoneProgress = {
   failure: FailureReport | null; // 次の Codex 修正へ渡す直前の実行失敗。中断後の再開でも渡す
   e2eReview: IssueSet | null; // 初回 E2E レビューで固定した指摘集合 (§17.1)
   conflicts: string[]; // 統合で衝突し、Codex が解消するファイル。build の成功で空にする (§10.3)
+  reviewConflicts: string[]; // 衝突を解消したファイル。次の Code Review で解消内容を初回レビューして空にする (§10.3, §14.3)
 };
 
 // fatal error の記録。milestone は発生した milestone、milestone の外なら null (§23)
@@ -61,10 +62,10 @@ export async function loadProgress(root: string): Promise<Progress | null> {
 // milestone を 1 つずつ進めていた形式 (current と全体の phase) の progress を並列実行の形式に読み替える
 function upgradeProgress(value: Record<string, unknown> | null): Partial<Progress> | null {
   if (!value || !('current' in value)) return value as Partial<Progress> | null;
-  const { current, phase, fatal, ...rest } = value as { current: Omit<MilestoneProgress, 'phase' | 'conflicts'> | null; phase: Phase; fatal: Omit<FatalRecord, 'milestone'> | null };
+  const { current, phase, fatal, ...rest } = value as { current: Omit<MilestoneProgress, 'phase' | 'conflicts' | 'reviewConflicts'> | null; phase: Phase; fatal: Omit<FatalRecord, 'milestone'> | null };
   return {
     ...rest,
-    active: current ? [{ ...current, phase, conflicts: [] }] : [],
+    active: current ? [{ ...current, phase, conflicts: [], reviewConflicts: [] }] : [],
     fatal: fatal && { ...fatal, milestone: current?.id ?? null },
   } as Partial<Progress>;
 }
@@ -76,7 +77,7 @@ export async function saveProgress(root: string, progress: Progress): Promise<vo
 
 // milestone 開始時の途中進捗を作る。recovery 回数は引き継ぐ (§20.3)
 export function newMilestoneProgress(id: string, baseCommit: string, recoveries: number): MilestoneProgress {
-  return { id, phase: 'idle', baseCommit, failures: zeroFailures(), recoveries, codeReview: null, codeReviewTree: null, e2eReview: null, failure: null, conflicts: [] };
+  return { id, phase: 'idle', baseCommit, failures: zeroFailures(), recoveries, codeReview: null, codeReviewTree: null, e2eReview: null, failure: null, conflicts: [], reviewConflicts: [] };
 }
 
 // 全工程の連続失敗回数が 0 の記録を返す

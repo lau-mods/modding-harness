@@ -3,8 +3,8 @@ import { ExecutionFailure, FatalError } from '../core/errors.js';
 import type { ProcessResult, Runner } from '../core/process.js';
 import { tail } from '../core/process.js';
 
-// agent の役割。Codex: implementation、Claude: plan / spec_edit / code_review / code_recheck / e2e_review / e2e_recheck
-export type AgentRole = 'implementation' | 'plan' | 'spec_edit' | 'code_review' | 'code_recheck' | 'e2e_review' | 'e2e_recheck';
+// agent の役割。Codex: implementation、Claude: plan / spec_edit / code_review / code_recheck / conflict_review / e2e_review / e2e_recheck
+export type AgentRole = 'implementation' | 'plan' | 'spec_edit' | 'code_review' | 'code_recheck' | 'conflict_review' | 'e2e_review' | 'e2e_recheck';
 
 // JSON Schema オブジェクト
 export type JsonSchema = Record<string, unknown>;
@@ -29,6 +29,7 @@ const schemas: Record<AgentRole, JsonSchema> = {
   spec_edit: object({ projectMarkdown: string, summary: string }),
   code_review: findings,
   code_recheck: verdicts,
+  conflict_review: findings,
   e2e_review: findings,
   e2e_recheck: verdicts,
 };

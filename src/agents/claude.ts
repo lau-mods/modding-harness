@@ -7,7 +7,7 @@ import type { IssueVerdict, ReviewFinding, ReviewIssue } from '../review/issues.
 import type { AcceptanceCriterion, Feature } from '../spec/types.js';
 import { agentFailure, outputSchema, runAgentProcess, validateOutput } from './agent.js';
 import type { AgentCall, AgentRequest } from './agent.js';
-import { codeRecheckPrompt, codeReviewPrompt, e2eRecheckPrompt, e2eReviewPrompt, planPrompt, specEditPrompt } from './prompts.js';
+import { codeRecheckPrompt, codeReviewPrompt, conflictReviewPrompt, e2eRecheckPrompt, e2eReviewPrompt, planPrompt, specEditPrompt } from './prompts.js';
 
 // 計画作成の入力 (§6.2)
 export type PlanInput = { projectMarkdown: string; features: Feature[]; projectFiles: string[] };
@@ -24,6 +24,9 @@ export type CodeReviewInput = {
   criteria: AcceptanceCriterion[];
   diff: string; // 初回は復元基点から、再確認は前回レビューからの Git diff
 };
+
+// 統合の衝突解消のレビューの入力。diff は conflict marker を含む merge 直後の状態からの差分 (§14.3)
+export type ConflictReviewInput = CodeReviewInput & { conflicts: string[] };
 
 // E2E レビューの入力 (§17.1)
 export type E2EReviewInput = {
@@ -76,6 +79,11 @@ export async function reviewCode(call: AgentCall, input: CodeReviewInput): Promi
 // Code Review の修正レビュー。固定済み指摘の解消状態だけを判定させる (§14.2)
 export async function recheckCode(call: AgentCall, input: CodeReviewInput, issues: ReviewIssue[]): Promise<IssueVerdict[]> {
   return (await runClaude<{ verdicts: IssueVerdict[] }>(call, { role: 'code_recheck', prompt: codeRecheckPrompt(input, issues), images: [] })).verdicts;
+}
+
+// 統合の衝突解消のレビュー。解消内容の指摘をすべて列挙させる (§14.3)
+export async function reviewConflicts(call: AgentCall, input: ConflictReviewInput): Promise<ReviewFinding[]> {
+  return (await runClaude<{ findings: ReviewFinding[] }>(call, { role: 'conflict_review', prompt: conflictReviewPrompt(input), images: [] })).findings;
 }
 
 // 初回 E2E レビュー。screenshot から表示上の問題を列挙させる (§17.1)

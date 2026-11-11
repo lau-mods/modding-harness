@@ -1,7 +1,7 @@
 import type { FailureReport } from '../core/errors.js';
 import type { ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
-import type { CodeReviewInput, E2EReviewInput, PlanInput, SpecEditInput } from './claude.js';
+import type { CodeReviewInput, ConflictReviewInput, E2EReviewInput, PlanInput, SpecEditInput } from './claude.js';
 import type { ImplementationInput } from './codex.js';
 
 // すべての Codex 実装・修正要求に全文を含める Code Rules (§12.1)
@@ -155,6 +155,30 @@ The diff below contains only the changes since the previous review of these issu
 ${block('Issues to check', json(issues.map(issueView)))}
 
 ${block('Git diff since the previous review', input.diff)}`;
+}
+
+// 統合の衝突解消のレビュー指示。両側の変更が残っているかを確認させ、すべての指摘を列挙させる (§14.3)
+export function conflictReviewPrompt(input: ConflictReviewInput): string {
+  return `You review how merge conflicts were resolved in milestone ${input.milestone.id} of a NeoForge Minecraft mod. Read any project file you need.
+
+Milestones without mutual dependencies are implemented in parallel. Another milestone was completed while ${input.milestone.id} was in progress, and its checkpoint was merged into ${input.milestone.id}. The files below conflicted. The diff starts from the merge result with conflict markers, so it shows exactly how each conflict was resolved.
+List every issue in the resolution now. The issues are added to the fixed issue set of the milestone; later reviews only check them, so report everything in this review.
+Review for:
+- Changes of either side that were lost or reverted: registrations, resources, lang entries, recipes, loot tables, GameTests and tests/acceptance.json entries of the completed milestone and of this milestone
+- Definitions that were duplicated or merged incorrectly, such as the same registry name, key or method defined twice
+- Remaining conflict markers or fragments of them
+- Compliance with the code style below
+For each issue give target (file and line), acId (the affected criterion of either milestone, or null), problem, reason and fix. Return an empty list when the resolution keeps both sides correct.
+
+${CODE_RULES}
+
+${block('Milestone', json(input.milestone))}
+
+${block('Target Acceptance Criteria', criteriaText(input.criteria))}
+
+${block('Conflicted files', input.conflicts.join('\n'))}
+
+${block('Git diff of the conflict resolution', input.diff)}`;
 }
 
 // 初回 E2E レビューの指示。screenshot と AC の Expected Result から表示上の問題を列挙させる (§17.1)
