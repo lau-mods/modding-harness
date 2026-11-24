@@ -16,6 +16,11 @@ export const CODE_RULES = `Code style:
 - Remove code, resources and comments that the current behavior no longer uses.
 - Names say what the code does; comments say why, describing the current behavior only.`;
 
+// 指摘を列挙するレビューに共通する範囲。この milestone の実装によるものだけを指摘させる (§14.1, §14.3, §17.1)
+const REVIEW_SCOPE = `Scope:
+- Report only issues caused by this implementation. Do not request tests or changes for behavior that NeoForge, Minecraft or dependency mods already implement.
+- This excludes, for example, whether the game starts with or without a dependency, differences in how registered recipes behave depending on dependencies, and changes on the dependency side that likely do not affect the essence of the feature.`;
+
 // GameTest の作成指示 (§15)
 const GAMETEST_CONTRACT = `GameTest contract:
 - Verify game state and logic (blocks, items, recipes, inventories, block entities, entities, saving and loading, server-side state, state changed through GUI actions) with the Minecraft/NeoForge GameTest framework of the target version.
@@ -138,6 +143,8 @@ Review for:
 - Changes to files outside the mod sources (README, gradle.properties, build.gradle, settings.gradle, mod metadata) beyond the lines a target Acceptance Criterion or the GameTest/E2E setup needs
 For each issue give target (file and line), acId (the affected criterion, or null), problem, reason and fix. Request only changes that bring the code to the Acceptance Criteria and the code style. Return an empty list when the implementation is ready.
 
+${REVIEW_SCOPE}
+
 ${CODE_RULES}
 
 ${block('Milestone', json(input.milestone))}
@@ -172,6 +179,8 @@ Review for:
 - Compliance with the code style below
 For each issue give target (file and line), acId (the affected criterion of either milestone, or null), problem, reason and fix. Return an empty list when the resolution keeps both sides correct.
 
+${REVIEW_SCOPE}
+
 ${CODE_RULES}
 
 ${block('Milestone', json(input.milestone))}
@@ -190,6 +199,8 @@ export function e2eReviewPrompt(input: E2EReviewInput): string {
 Compare each screenshot with the Expected Result of its Acceptance Criterion and list every display problem you find now: missing textures, broken block, item or entity models, UV errors, z-fighting, clipping, transparency errors, broken GUI layout, text overflow and inconsistent resources. This list becomes the fixed issue set of the milestone; later reviews only check these issues.
 Review only what the mod renders for the target criteria. Chat and command feedback, toasts and notifications (advancements, recipes, tutorials), the vanilla HUD, debug overlays and log or error text on the screen are outside the review: do not report them.
 For each issue give target (the screenshot path), acId, problem, reason and fix. Return an empty list when every screenshot shows the Expected Result.
+
+${REVIEW_SCOPE}
 
 ${block('Screenshots', screenshotList(input))}
 
