@@ -28,10 +28,17 @@ export function opencodeArgs(call: AgentCall, request: AgentRequest): string[] {
   ];
 }
 
-// opencode の設定を上書きして、役割の権限を持つ agent を定義する。書き込む役割には編集と ./gradlew の実行を許可し、readDirs は読み取りのため root の外でも許可する
+// opencode の設定を上書きして、役割の権限を持つ agent を定義する。非対話の実行では入力要求に答えられず、許可していない tool (web search、コード実行、skill など) が
+// 入力要求を出すと実行が失敗するため、すべての tool を既定で拒否し、ファイルの読み取りだけを許可する。書き込む役割には編集と ./gradlew の実行も許可する。
+// .env は読ませない。readDirs は読み取りのため root の外でも許可する
 export function opencodeConfig(call: AgentCall, write: boolean): string {
   const external = Object.fromEntries([['*', 'deny'], ...(call.readDirs ?? []).map(dir => [`${path.resolve(dir)}/*`, 'allow'])]);
-  const permission = { edit: write ? 'allow' : 'deny', bash: write ? { '*': 'deny', './gradlew*': 'allow' } : 'deny', webfetch: 'deny', external_directory: external };
+  const permission = {
+    '*': 'deny',
+    read: { '*': 'allow', '*.env': 'deny', '*.env.*': 'deny' }, glob: 'allow', grep: 'allow', list: 'allow',
+    ...(write ? { edit: 'allow', bash: { '*': 'deny', './gradlew*': 'allow' } } : {}),
+    external_directory: external,
+  };
   return JSON.stringify({ agent: { [AGENT]: { description: 'Modding Harness agent', mode: 'primary', permission } } });
 }
 
