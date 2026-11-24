@@ -16,18 +16,15 @@ export type AgentType = 'codex' | 'claude' | 'opencode';
 // 有効な agent CLI の種類
 export const AGENT_TYPES: AgentType[] = ['codex', 'claude', 'opencode'];
 
-// agent CLI の呼び出し設定。model / effort が null なら CLI の設定に従う。fast / provider は type が codex の場合だけ使う (§8)
-// fast が true なら Codex を Fast (priority) tier で実行し、false または省略なら CLI の設定に従う。provider が null または省略なら CLI の設定の provider を使う
-export type AgentConfig = { type: AgentType; command: string; model: string | null; effort: string | null; fast?: boolean; provider?: ProviderConfig | null };
+// agent CLI の呼び出し設定。model / effort が null なら CLI の設定に従う。fast は type が codex の場合だけ使う (§8)
+// fast が true なら Codex を Fast (priority) tier で実行し、false または省略なら CLI の設定に従う
+export type AgentConfig = { type: AgentType; command: string; model: string | null; effort: string | null; fast?: boolean };
 
 // agent が使う model と effort の組
 export type ModelConfig = Pick<AgentConfig, 'model' | 'effort'>;
 
 // milestone 内で繰り返し実行する agent の設定。initial を初回、retry を 2 回目以降に使う (§8)
 export type RepeatedAgent<C extends AgentConfig> = Omit<C, keyof ModelConfig> & { initial: ModelConfig; retry: ModelConfig };
-
-// Codex が使う Responses API 互換の model provider。id は Codex 上の provider 名、envKey は API キーを読む環境変数
-export type ProviderConfig = { id: string; baseUrl: string; envKey: string };
 
 // Harness が起動する NeoForge dedicated server。directory は Workspace root からの相対パス、address は host:port (§16.2)
 export type ServerConfig = { directory: string; command: string[]; address: string; world: string };
@@ -89,10 +86,6 @@ export function checkConfig(value: unknown): string[] {
     if (!AGENT_TYPES.includes(get(`${agent}.type`) as AgentType)) problems.push(`${agent}.type must be one of ${AGENT_TYPES.join(', ')}`);
     const fast = get(`${agent}.fast`);
     if (fast !== undefined && typeof fast !== 'boolean') problems.push(`${agent}.fast must be true or false`);
-    const provider = get(`${agent}.provider`);
-    if (provider !== undefined && provider !== null) {
-      for (const key of ['id', 'baseUrl', 'envKey']) text(`${agent}.provider.${key}`);
-    }
   }
   const models = ['agents.plan', 'agents.implementation', ...repeatedAgents.flatMap(agent => [`${agent}.initial`, `${agent}.retry`])];
   for (const key of models.flatMap(model => [`${model}.model`, `${model}.effort`])) {
@@ -124,7 +117,7 @@ export function defaultConfig(): HarnessConfig {
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
       plan: { type: 'claude', command: 'claude', model: 'claude-opus-5-5', effort: 'high' },
-      implementation: { type: 'opencode', command: 'opencode', model: 'openai/gpt-5.6-sol', effort: 'high', fast: false, provider: null },
+      implementation: { type: 'opencode', command: 'opencode', model: 'openai/gpt-5.6-sol', effort: 'high' },
       codeReview: { type: 'claude', command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'medium' }, retry: { model: 'claude-sonnet-5-5', effort: 'medium' } },
       e2eReview: { type: 'claude', command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'high' }, retry: { model: 'claude-sonnet-5-5', effort: 'high' } },
     },

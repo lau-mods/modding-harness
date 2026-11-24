@@ -30,31 +30,26 @@ export async function doctor(root: string, runner: Runner): Promise<Diagnostic[]
   return results;
 }
 
-// 各役割の agent CLI (Codex / Claude / opencode) が実行でき、認証が利用可能か確認する。同じ CLI・provider の組は 1 回だけ確認する (§9.3)
+// 各役割の agent CLI (Codex / Claude / opencode) が実行でき、認証が利用可能か確認する。同じ CLI の組は 1 回だけ確認する (§9.3)
 export async function checkAgents(root: string, config: HarnessConfig, runner: Runner): Promise<Diagnostic[]> {
-  const agents = new Map<string, AgentConfig>();
-  for (const agent of Object.values(config.agents)) {
-    const provider = agent.type === 'codex' ? agent.provider ?? null : null;
-    agents.set(JSON.stringify([agent.type, agent.command, provider]), { ...agent, provider } as AgentConfig);
-  }
+  const agents = new Map<string, Pick<AgentConfig, 'type' | 'command'>>();
+  for (const { type, command } of Object.values(config.agents)) agents.set(JSON.stringify([type, command]), { type, command });
   const checks = { codex: checkCodex, claude: checkClaude, opencode: checkOpencode };
   return Promise.all([...agents.values()].map(agent => checks[agent.type](root, agent, runner)));
 }
 
-// Codex CLI を確認する。独自の provider は OpenAI のログインではなく、API キーの環境変数で認証する
-async function checkCodex(root: string, { command, provider }: AgentConfig, runner: Runner): Promise<Diagnostic> {
-  if (!provider) return probe(root, `Codex (${command})`, command, ['login', 'status'], runner);
-  if (!process.env[provider.envKey]) return { name: `Codex (${command}, ${provider.id})`, status: 'misconfigured', detail: `Set ${provider.envKey} to the ${provider.id} API key` };
-  return probe(root, `Codex (${command}, ${provider.id})`, command, ['--version'], runner);
+// Codex CLI を確認する
+async function checkCodex(root: string, { command }: Pick<AgentConfig, 'command'>, runner: Runner): Promise<Diagnostic> {
+  return probe(root, `Codex (${command})`, command, ['login', 'status'], runner);
 }
 
 // opencode CLI を確認する。認証は provider ごとに異なるため、実行できることだけを確認する
-async function checkOpencode(root: string, { command }: AgentConfig, runner: Runner): Promise<Diagnostic> {
+async function checkOpencode(root: string, { command }: Pick<AgentConfig, 'command'>, runner: Runner): Promise<Diagnostic> {
   return probe(root, `opencode (${command})`, command, ['--version'], runner);
 }
 
 // Claude CLI を確認する
-async function checkClaude(root: string, { command }: AgentConfig, runner: Runner): Promise<Diagnostic> {
+async function checkClaude(root: string, { command }: Pick<AgentConfig, 'command'>, runner: Runner): Promise<Diagnostic> {
   const claude = await probe(root, `Claude (${command})`, command, ['auth', 'status'], runner);
   // claude auth status は終了コード 0 のまま未ログインを JSON で返す
   const status = claude.status === 'ok' ? parseJson(claude.detail) as { loggedIn?: boolean; authMethod?: string } | null : null;

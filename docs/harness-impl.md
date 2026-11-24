@@ -403,9 +403,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
       "type": "opencode",
       "command": "opencode",
       "model": "openai/gpt-5.6-sol",
-      "effort": "high",
-      "fast": false,
-      "provider": null
+      "effort": "high"
     },
     "codeReview": {
       "type": "claude",
@@ -442,9 +440,7 @@ opencode には構造化出力の指定が無いため、Harness は出力の JS
 
 `codeReview`、`e2eReview` では、`initial` の `model` と `effort` を milestone 内の初回に、`retry` の `model` と `effort` を 2 回目以降に使用する。2 回目以降は修正レビューを指す。recovery は milestone を最初からやり直すため、再び `initial` から始める。
 
-`fast` と `provider` は `type` が `codex` の agent だけで使う。`fast` が `true` の場合、Codex を Fast tier で実行する。`false` または省略の場合は CLI の設定に従う。
-
-`provider` は Codex が使う Responses API 互換の model provider を定義する。API キーは `envKey` の環境変数から読む。`null` または省略の場合は CLI の設定の provider を使う。
+`fast` は `type` が `codex` の agent だけで使う。`true` の場合、Codex を Fast tier で実行する。`false` または省略の場合は CLI の設定に従う。
 
 `parallel` は同時に進める milestone の上限とする。1 以上の整数で、省略時は 3 とする。1 の場合は milestone を一つずつ進める。
 

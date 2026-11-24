@@ -80,9 +80,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
       "type": "opencode",
       "command": "opencode",
       "model": "openai/gpt-5.6-sol",
-      "effort": "high",
-      "fast": false,
-      "provider": null
+      "effort": "high"
     },
     "codeReview": {
       "type": "claude",
@@ -112,19 +110,6 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 }
 ```
 
-実装役を DeepSeek にする場合は、`agents.implementation` を次のようにします。Codex CLI のまま、DeepSeek の Responses API 互換の API を使います。実行するシェルで環境変数 `DEEPSEEK_API_KEY` に API キーを設定してください。
-
-```json
-"implementation": {
-  "type": "codex",
-  "command": "codex",
-  "model": "deepseek-flash",
-  "effort": "high",
-  "fast": false,
-  "provider": { "id": "deepseek", "baseUrl": "https://api.deepseek.com/", "envKey": "DEEPSEEK_API_KEY" }
-}
-```
-
 | キー | 内容 |
 |---|---|
 | `parallel` | 同時に進める milestone の上限 (省略時 3)。`1` なら一つずつ進める。各 milestone が Gradle と GameTest server を個別に動かすため、マシンのメモリに合わせて決める |
@@ -140,7 +125,6 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 | `model` | 使用するモデル。opencode では `provider/model` の形式。`null` なら各 CLI の設定に従う |
 | `effort` | 推論の深さ (`low` / `medium` / `high` など)。opencode では model の variant (`provider/model#variant`) として渡す。`null` なら各 CLI の設定に従う |
 | `agents.*.fast` | `type` が `codex` の場合だけ使う。`true` なら Codex を Fast (priority) tier で実行する。`false` または省略なら CLI の設定に従う |
-| `agents.*.provider` | `type` が `codex` の場合だけ使う。Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` または省略なら CLI の設定の provider (通常は OpenAI) を使う |
 | `runtime.command` | MC Pilot CLI のコマンド |
 | `runtime.server.directory` | NeoForge server のディレクトリ (Workspace root からの相対パス) |
 | `runtime.server.command` | server の起動コマンド (`directory` 内で実行) |
