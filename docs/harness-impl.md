@@ -432,7 +432,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 `type` は役割に使う CLI を `codex`、`claude`、`opencode` のいずれかで指定する。implementation では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する。本書で Codex implementation、Claude review と書く箇所は、各役割に設定した CLI が担う。
 
-opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。この設定を反映させるため、opencode は共有の background service ではなく `--standalone` の専用 server で実行する。`model` は `provider/model` の形式で指定し、`effort` は model の variant (`provider/model#variant`) として渡す。
+opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。この設定を反映させるため、opencode は共有の background service ではなく `--standalone` の専用 server で実行する。opencode は cwd ではなく環境変数 `PWD` から session の作業先を決めるため、`PWD` も作業ディレクトリに合わせる。implementation では、session の作業先が milestone の worktree と一致することを確かめてから編集を許可する。session が無い場合は、編集を許可しない agent で先に session を作って確かめる。一致しなければ fatal error とする。`model` は `provider/model` の形式で指定し、`effort` は model の variant (`provider/model#variant`) として渡す。
 
 `model` と `effort` が `null` の場合、各 CLI の設定に従う。
 
