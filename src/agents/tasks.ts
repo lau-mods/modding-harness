@@ -3,7 +3,7 @@ import type { ScenarioResult } from '../e2e/scenario.js';
 import type { Milestone, Plan } from '../plan/plan.js';
 import type { IssueResponse, IssueVerdict, ReviewFinding, ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion, Feature } from '../spec/types.js';
-import type { AgentCall, AgentRequest } from './agent.js';
+import type { AgentCall, AgentRequest, AgentResult } from './agent.js';
 import { runClaude } from './claude.js';
 import { runCodex } from './codex.js';
 import { runOpencode } from './opencode.js';
@@ -50,10 +50,15 @@ export type E2EReviewInput = {
   scenarios: ScenarioResult[]; // screenshot と対象 AC を含む実行結果
 };
 
-// 設定の type に対応する agent CLI を実行して構造化出力を得る (§8)
-export async function runAgent<T>(call: AgentCall, request: AgentRequest): Promise<T> {
+// 設定の type に対応する agent CLI を実行して構造化出力と session ID を得る (§8)
+export async function runAgentSession<T>(call: AgentCall, request: AgentRequest): Promise<AgentResult<T>> {
   const run = { codex: runCodex, claude: runClaude, opencode: runOpencode }[call.config.type];
   return run<T>(call, request);
+}
+
+// 設定の type に対応する agent CLI を新しい session で実行して構造化出力を得る (§8)
+export async function runAgent<T>(call: AgentCall, request: AgentRequest): Promise<T> {
+  return (await runAgentSession<T>(call, request)).output;
 }
 
 // Feature を milestone に割り当てた計画案を作らせる (§6.2)
@@ -66,10 +71,11 @@ export async function editSpec(call: AgentCall, input: SpecEditInput): Promise<S
   return runAgent<SpecEditOutput>(call, { role: 'spec_edit', prompt: specEditPrompt(input), images: [] });
 }
 
-// milestone の実装、または実行失敗・レビュー指摘の修正を依頼する。失敗や E2E 指摘の screenshot は画像として添付する (§11, §14.2, §17.2, §19.2)
-export async function implement(call: AgentCall, input: ImplementationInput): Promise<ImplementationOutput> {
+// milestone の実装、または実行失敗・レビュー指摘の修正を依頼する。session があれば milestone の同じ session を再開する。
+// 失敗や E2E 指摘の screenshot は画像として添付する (§11, §14.2, §17.2, §19.2)
+export async function implement(call: AgentCall, input: ImplementationInput, session: string | null): Promise<AgentResult<ImplementationOutput>> {
   const images = [...input.failure?.screenshots ?? [], ...input.e2eIssues.map(issue => issue.target)];
-  return runAgent<ImplementationOutput>(call, { role: 'implementation', prompt: implementationPrompt(input), images: [...new Set(images)] });
+  return runAgentSession<ImplementationOutput>(call, { role: 'implementation', prompt: implementationPrompt(input), images: [...new Set(images)], session });
 }
 
 // 初回 Code Review。発見したすべての指摘を列挙させる (§14.1)

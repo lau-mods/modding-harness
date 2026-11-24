@@ -26,6 +26,7 @@ export type MilestoneProgress = {
   e2eReview: IssueSet | null; // 初回 E2E レビューで固定した指摘集合 (§17.1)
   conflicts: string[]; // 統合で衝突し、Codex が解消するファイル。build の成功で空にする (§10.3)
   reviewConflicts: string[]; // 衝突を解消したファイル。次の Code Review で解消内容を初回レビューして空にする (§10.3, §14.3)
+  session: string | null; // 実装 agent の session ID。checkpoint まで同じ session を再開し、recovery で破棄する (§11)
 };
 
 // fatal error の記録。milestone は発生した milestone、milestone の外なら null (§23)
@@ -77,7 +78,7 @@ export async function saveProgress(root: string, progress: Progress): Promise<vo
 
 // milestone 開始時の途中進捗を作る。recovery 回数は引き継ぐ (§20.3)
 export function newMilestoneProgress(id: string, baseCommit: string, recoveries: number): MilestoneProgress {
-  return { id, phase: 'idle', baseCommit, failures: zeroFailures(), recoveries, codeReview: null, codeReviewTree: null, e2eReview: null, failure: null, conflicts: [], reviewConflicts: [] };
+  return { id, phase: 'idle', baseCommit, failures: zeroFailures(), recoveries, codeReview: null, codeReviewTree: null, e2eReview: null, failure: null, conflicts: [], reviewConflicts: [], session: null };
 }
 
 // 全工程の連続失敗回数が 0 の記録を返す

@@ -30,9 +30,6 @@ export type WorkflowContext = {
 // 並列に進む milestone 1 件分の実行環境。dir はその milestone 専用の git worktree で、実装・build・テスト・レビューはここで行う (§10.3)
 export type MilestoneContext = WorkflowContext & { milestone: Milestone; dir: string };
 
-// develop で繰り返し実行する agent ごとの、1 回分の呼び出し設定
-type RepeatedCalls = { implementation: AgentConfig; codeReview: AgentConfig; e2eReview: AgentConfig };
-
 // config / PROJECT.md / plan / progress を読み込み、固定対象の fingerprint を記録する。読めなければ FatalError (§6.3, §23)
 export async function openContext(root: string, runner: Runner): Promise<WorkflowContext> {
   const config = await loadConfig(root);
@@ -61,10 +58,12 @@ export async function guardIntegrity(ctx: MilestoneContext): Promise<void> {
   for (const root of new Set([ctx.root, ctx.dir])) await assertIntegrity(root, ctx.baseline);
 }
 
-// 役割に対応する agent 設定で、milestone の worktree を作業ディレクトリにする AgentCall を作る。log と screenshot は Workspace の runs/ から読ませる。retry なら 2 回目以降の model / effort を使う (§8)
-export function agentCall<K extends keyof RepeatedCalls>(ctx: MilestoneContext, agent: K, logDir: string, retry = false): AgentCall<RepeatedCalls[K]> {
-  const config = ctx.config.agents[agent];
-  return { config: { ...config, ...config[retry ? 'retry' : 'initial'] } as unknown as RepeatedCalls[K], root: ctx.dir, logDir, runner: ctx.runner, readDirs: [projectPaths(ctx.root).runs] };
+// 役割に対応する agent 設定で、milestone の worktree を作業ディレクトリにする AgentCall を作る。log と screenshot は Workspace の runs/ から読ませる。
+// レビューでは retry なら 2 回目以降の model / effort を使う (§8)
+export function agentCall(ctx: MilestoneContext, agent: 'implementation' | 'codeReview' | 'e2eReview', logDir: string, retry = false): AgentCall {
+  const agents = ctx.config.agents;
+  const config: AgentConfig = agent === 'implementation' ? agents.implementation : { ...agents[agent], ...agents[agent][retry ? 'retry' : 'initial'] };
+  return { config, root: ctx.dir, logDir, runner: ctx.runner, readDirs: [projectPaths(ctx.root).runs] };
 }
 
 // milestone の途中進捗を返す

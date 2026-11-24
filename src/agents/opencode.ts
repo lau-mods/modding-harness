@@ -1,22 +1,24 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { FatalError } from '../core/errors.js';
-import { agentFailure, canWrite, outputSchema, runAgentProcess, validateOutput } from './agent.js';
-import type { AgentCall, AgentRequest } from './agent.js';
+import { agentFailure, canWrite, jsonLines, outputSchema, runAgentProcess, validateOutput } from './agent.js';
+import type { AgentCall, AgentRequest, AgentResult } from './agent.js';
 
 // Harness が opencode に定義する agent の名前
 const AGENT = 'harness';
 
-// opencode CLI の引数を組み立てる。権限は OPENCODE_CONFIG_CONTENT で定義した agent で決める。画像は添付する
+// opencode CLI の引数を組み立てる。session があれば再開する。OPENCODE_CONFIG_CONTENT を反映させるため、共有の background service ではなく専用の server で実行する。
+// 権限は OPENCODE_CONFIG_CONTENT で定義した agent で決める。画像は添付する。作業ディレクトリは実行時の cwd (root) とし、effort は model の variant (provider/model#variant) として渡す
 export function opencodeArgs(call: AgentCall, request: AgentRequest): string[] {
+  const { model, effort } = call.config;
   return [
     'run',
+    '--standalone',
     '--format', 'json',
     '--agent', AGENT,
-    '--dir', call.root,
+    ...(request.session ? ['--session', request.session] : []),
     ...request.images.flatMap(image => ['--file', image]),
-    ...(call.config.model ? ['--model', call.config.model] : []),
-    ...(call.config.effort ? ['--variant', call.config.effort] : []),
+    ...(model ? ['--model', effort ? `${model}#${effort}` : model] : []),
   ];
 }
 
@@ -41,16 +43,16 @@ ${JSON.stringify(outputSchema(request.role))}
 \`\`\``;
 }
 
-// opencode CLI を実行し、最後のテキストを JSON として読む。失敗は FatalError (§23)
-export async function runOpencode<T>(call: AgentCall, request: AgentRequest): Promise<T> {
+// opencode CLI を実行し、最後のテキストを JSON として読み、session ID とともに返す。失敗は FatalError (§23)
+export async function runOpencode<T>(call: AgentCall, request: AgentRequest): Promise<AgentResult<T>> {
   const prompt = opencodePrompt(request);
   await writeFile(path.join(call.logDir, 'prompt.md'), prompt);
   const result = await runAgentProcess(call, request.role, opencodeArgs(call, request), prompt, { OPENCODE_CONFIG_CONTENT: opencodeConfig(call, request) });
-  const events = result.stdout.split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line) as { type?: string; part?: { text?: string } }; } catch { return {}; } });
+  const events = jsonLines(result.stdout) as { type?: string; sessionID?: string; part?: { text?: string } }[];
   if (result.code !== 0 || events.some(event => event.type === 'error')) throw agentFailure(request.role, result);
   const text = events.filter(event => event.type === 'text').at(-1)?.part?.text?.trim() ?? '';
   let value: unknown;
   try { value = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')); }
   catch { throw new FatalError(`opencode returned no structured output for ${request.role}: ${text.slice(-500)}`); }
-  return validateOutput<T>(request.role, value);
+  return { output: validateOutput<T>(request.role, value), session: events.find(event => event.sessionID)?.sessionID ?? request.session ?? null };
 }

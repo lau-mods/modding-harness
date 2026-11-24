@@ -12,12 +12,20 @@ export type JsonSchema = Record<string, unknown>;
 // agent 呼び出しに共通する実行環境。cwd は root (Workspace root または milestone の worktree)、記録は logDir に保存する。readDirs は root の外で読ませるディレクトリ
 export type AgentCall<C extends AgentConfig = AgentConfig> = { config: C; root: string; logDir: string; runner: Runner; readDirs?: string[] };
 
-// agent 呼び出し 1 回分の要求。images は agent に添付する画像
-export type AgentRequest = { role: AgentRole; prompt: string; images: string[] };
+// agent 呼び出し 1 回分の要求。images は agent に添付する画像。session があればその session を再開する
+export type AgentRequest = { role: AgentRole; prompt: string; images: string[]; session?: string | null };
+
+// agent 呼び出し 1 回分の結果。session は再開に使う CLI の session ID
+export type AgentResult<T> = { output: T; session: string | null };
 
 // Workspace のファイルを編集する役割か。それ以外の役割は読み取り専用で実行する
 export function canWrite(role: AgentRole): boolean {
   return role === 'implementation';
+}
+
+// JSON Lines の出力を event の配列として読む。JSON でない行は無視する
+export function jsonLines(text: string): { type?: string }[] {
+  return text.split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line) as { type?: string }; } catch { return {}; } });
 }
 
 // agent 1 回の実行時間の上限

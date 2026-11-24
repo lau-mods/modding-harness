@@ -47,7 +47,7 @@ export type HarnessConfig = {
   gradle: GradleConfig;
   agents: {
     plan: AgentConfig; // plan / chat
-    implementation: RepeatedAgent<AgentConfig>; // 実装・修正
+    implementation: AgentConfig; // 実装・修正。milestone の checkpoint まで同じ session を使い続ける
     codeReview: RepeatedAgent<AgentConfig>; // Code Review
     e2eReview: RepeatedAgent<AgentConfig>; // E2E の screenshot レビュー
   };
@@ -82,8 +82,8 @@ export function checkConfig(value: unknown): string[] {
   };
   const parallel = get('parallel');
   if (parallel !== undefined && !(Number.isInteger(parallel) && (parallel as number) >= 1)) problems.push('parallel must be an integer of 1 or more');
-  const repeatedAgents = ['implementation', 'codeReview', 'e2eReview'].map(name => `agents.${name}`);
-  const agents = ['agents.plan', ...repeatedAgents];
+  const repeatedAgents = ['codeReview', 'e2eReview'].map(name => `agents.${name}`);
+  const agents = ['agents.plan', 'agents.implementation', ...repeatedAgents];
   for (const key of ['gradle.compile', 'gradle.build', 'gradle.gameTest', ...agents.map(agent => `${agent}.command`), 'runtime.command']) text(key);
   for (const agent of agents) {
     if (!AGENT_TYPES.includes(get(`${agent}.type`) as AgentType)) problems.push(`${agent}.type must be one of ${AGENT_TYPES.join(', ')}`);
@@ -94,7 +94,7 @@ export function checkConfig(value: unknown): string[] {
       for (const key of ['id', 'baseUrl', 'envKey']) text(`${agent}.provider.${key}`);
     }
   }
-  const models = ['agents.plan', ...repeatedAgents.flatMap(agent => [`${agent}.initial`, `${agent}.retry`])];
+  const models = ['agents.plan', 'agents.implementation', ...repeatedAgents.flatMap(agent => [`${agent}.initial`, `${agent}.retry`])];
   for (const key of models.flatMap(model => [`${model}.model`, `${model}.effort`])) {
     const field = get(key);
     if (field !== null && (typeof field !== 'string' || !field)) problems.push(`${key} must be null or a non-empty string`);
@@ -124,7 +124,7 @@ export function defaultConfig(): HarnessConfig {
     gradle: { compile: 'classes', build: 'build', gameTest: 'runGameTestServer' },
     agents: {
       plan: { type: 'claude', command: 'claude', model: 'claude-opus-5-5', effort: 'high' },
-      implementation: { type: 'opencode', command: 'opencode', initial: { model: 'openai/gpt-5.6-sol', effort: 'high' }, retry: { model: 'openai/gpt-5.6-sol', effort: 'medium' }, fast: false, provider: null },
+      implementation: { type: 'opencode', command: 'opencode', model: 'openai/gpt-5.6-sol', effort: 'high', fast: false, provider: null },
       codeReview: { type: 'claude', command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'medium' }, retry: { model: 'claude-sonnet-5-5', effort: 'medium' } },
       e2eReview: { type: 'claude', command: 'claude', initial: { model: 'claude-opus-5-5', effort: 'high' }, retry: { model: 'claude-sonnet-5-5', effort: 'high' } },
     },

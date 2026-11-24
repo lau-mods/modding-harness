@@ -79,8 +79,8 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "implementation": {
       "type": "opencode",
       "command": "opencode",
-      "initial": { "model": "openai/gpt-5.6-sol", "effort": "high" },
-      "retry": { "model": "openai/gpt-5.6-sol", "effort": "medium" },
+      "model": "openai/gpt-5.6-sol",
+      "effort": "high",
       "fast": false,
       "provider": null
     },
@@ -118,8 +118,8 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 "implementation": {
   "type": "codex",
   "command": "codex",
-  "initial": { "model": "deepseek-flash", "effort": "high" },
-  "retry": { "model": "deepseek-flash", "effort": "medium" },
+  "model": "deepseek-flash",
+  "effort": "high",
   "fast": false,
   "provider": { "id": "deepseek", "baseUrl": "https://api.deepseek.com/", "envKey": "DEEPSEEK_API_KEY" }
 }
@@ -135,9 +135,10 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 | `agents.e2eReview` | E2E の screenshot レビューに使う agent |
 | `agents.*.type` | 使う CLI の種類。`codex`、`claude`、`opencode` のいずれか。実装・修正では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する |
 | `agents.*.command` | Codex / Claude / opencode CLI のコマンド |
-| `agents.implementation.initial` / `retry`、`agents.codeReview.initial` / `retry`、`agents.e2eReview.initial` / `retry` | milestone 内の初回に使う `model` / `effort` と、2 回目以降に使う `model` / `effort`。recovery 後は再び `initial` から始める |
+| `agents.plan.model` / `effort`、`agents.implementation.model` / `effort` | 使う `model` / `effort`。実装・修正は milestone の checkpoint まで同じ session を使い続け、recovery 後は新しい session で始める |
+| `agents.codeReview.initial` / `retry`、`agents.e2eReview.initial` / `retry` | milestone 内の初回に使う `model` / `effort` と、2 回目以降に使う `model` / `effort`。recovery 後は再び `initial` から始める |
 | `model` | 使用するモデル。opencode では `provider/model` の形式。`null` なら各 CLI の設定に従う |
-| `effort` | 推論の深さ (`low` / `medium` / `high` など)。opencode では `--variant` に渡す。`null` なら各 CLI の設定に従う |
+| `effort` | 推論の深さ (`low` / `medium` / `high` など)。opencode では model の variant (`provider/model#variant`) として渡す。`null` なら各 CLI の設定に従う |
 | `agents.*.fast` | `type` が `codex` の場合だけ使う。`true` なら Codex を Fast (priority) tier で実行する。`false` または省略なら CLI の設定に従う |
 | `agents.*.provider` | `type` が `codex` の場合だけ使う。Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` または省略なら CLI の設定の provider (通常は OpenAI) を使う |
 | `runtime.command` | MC Pilot CLI のコマンド |

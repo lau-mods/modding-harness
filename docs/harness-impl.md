@@ -347,7 +347,7 @@ Harness が開発状態を保持する専用ファイルは、次の二つを基
 | ファイル | 内容 |
 |---|---|
 | `.harness-state/plan.json` | 確定した milestone plan |
-| `.harness-state/progress.json` | 開発進捗、進行中 milestone ごとの工程・再試行回数・Claude 指摘事項 |
+| `.harness-state/progress.json` | 開発進捗、進行中 milestone ごとの工程・再試行回数・Claude 指摘事項・実装 agent の session ID |
 
 両ファイルを Workspace の Git 管理対象とする。
 
@@ -402,8 +402,8 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
     "implementation": {
       "type": "opencode",
       "command": "opencode",
-      "initial": { "model": "openai/gpt-5.6-sol", "effort": "high" },
-      "retry": { "model": "openai/gpt-5.6-sol", "effort": "medium" },
+      "model": "openai/gpt-5.6-sol",
+      "effort": "high",
       "fast": false,
       "provider": null
     },
@@ -434,11 +434,13 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 `type` は役割に使う CLI を `codex`、`claude`、`opencode` のいずれかで指定する。implementation では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する。本書で Codex implementation、Claude review と書く箇所は、各役割に設定した CLI が担う。
 
-opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。`model` は `provider/model` の形式で指定し、`effort` は `--variant` に渡す。
+opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。この設定を反映させるため、opencode は共有の background service ではなく `--standalone` の専用 server で実行する。`model` は `provider/model` の形式で指定し、`effort` は model の variant (`provider/model#variant`) として渡す。
 
 `model` と `effort` が `null` の場合、各 CLI の設定に従う。
 
-`implementation`、`codeReview`、`e2eReview` では、`initial` の `model` と `effort` を milestone 内の初回に、`retry` の `model` と `effort` を 2 回目以降に使用する。Implementation の 2 回目以降は実行失敗または未解決の指摘を修正する実行、レビューの 2 回目以降は修正レビューを指す。recovery は milestone を最初からやり直すため、再び `initial` から始める。`provider` は初回と 2 回目以降で共通とする。
+`implementation` は一組の `model` と `effort` を使い、milestone の checkpoint まで同じ session を使い続ける (§11)。
+
+`codeReview`、`e2eReview` では、`initial` の `model` と `effort` を milestone 内の初回に、`retry` の `model` と `effort` を 2 回目以降に使用する。2 回目以降は修正レビューを指す。recovery は milestone を最初からやり直すため、再び `initial` から始める。
 
 `fast` と `provider` は `type` が `codex` の agent だけで使う。`fast` が `true` の場合、Codex を Fast tier で実行する。`false` または省略の場合は CLI の設定に従う。
 
@@ -618,6 +620,8 @@ Codex は現在の milestone に所属するすべての Feature と AC を実�
 - 修正時の失敗情報または Claude 指摘
 
 Codex は対象 milestone の完成に必要な Java ソース、resource、GameTest、E2E シナリオを実装する。
+
+実装 agent は milestone ごとに一つの session を使う。初回の実装で始めた session を、修正・衝突の解消など checkpoint までのすべての実装・修正で再開し、session ID を `progress.json` の進行中 milestone に記録する。中断後の再実行でも同じ session を再開する。recovery は milestone を最初からやり直すため、session を破棄して新しい session で始める。
 
 `PROJECT.md`、plan、Harness 本体は実装中の固定対象とする。
 

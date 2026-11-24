@@ -2,18 +2,22 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ProviderConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
-import { agentFailure, canWrite, outputSchema, runAgentProcess, validateOutput } from './agent.js';
-import type { AgentCall, AgentRequest } from './agent.js';
+import { agentFailure, canWrite, jsonLines, outputSchema, runAgentProcess, validateOutput } from './agent.js';
+import type { AgentCall, AgentRequest, AgentResult } from './agent.js';
 
-// Codex CLI の引数を組み立てる。書き込む役割には Workspace への書き込みを許可し、それ以外は読み取り専用にする
+// Codex CLI の引数を組み立てる。書き込む役割には Workspace への書き込みを許可し、それ以外は読み取り専用にする。
+// session を再開する書き込む役割では session を保存し、それ以外は保存しない。作業ディレクトリは実行時の cwd (root) とする
 export function codexArgs(call: AgentCall, request: AgentRequest, schemaFile: string, outputFile: string): string[] {
+  const write = canWrite(request.role);
   return [
     'exec',
+    ...(request.session ? ['resume', request.session] : []),
+    '--json',
     ...request.images.flatMap(image => ['--image', image]),
-    '--sandbox', canWrite(request.role) ? 'workspace-write' : 'read-only', '--skip-git-repo-check', '--ephemeral',
+    '-c', `sandbox_mode="${write ? 'workspace-write' : 'read-only'}"`, '--skip-git-repo-check',
+    ...(write ? [] : ['--ephemeral']),
     '-c', 'approval_policy="never"',
     '-c', `projects.${JSON.stringify(path.resolve(call.root))}.trust_level="trusted"`,
-    '--cd', call.root,
     ...(call.config.model ? ['--model', call.config.model] : []),
     ...(call.config.effort ? ['-c', `model_reasoning_effort="${call.config.effort}"`] : []),
     ...(call.config.fast ? ['-c', 'service_tier="priority"'] : []),
@@ -34,8 +38,8 @@ function providerArgs(provider: ProviderConfig | null): string[] {
   ];
 }
 
-// Codex CLI を実行して構造化出力を得る。書き込む役割では sandbox の外で ./gradlew を実行できるようにする。失敗は FatalError (§23)
-export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promise<T> {
+// Codex CLI を実行して構造化出力と session ID (thread ID) を得る。書き込む役割では sandbox の外で ./gradlew を実行できるようにする。失敗は FatalError (§23)
+export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promise<AgentResult<T>> {
   if (canWrite(request.role)) {
     const rulesDir = path.join(call.root, '.codex', 'rules');
     await mkdir(rulesDir, { recursive: true });
@@ -50,5 +54,6 @@ export async function runCodex<T>(call: AgentCall, request: AgentRequest): Promi
   let value: unknown;
   try { value = JSON.parse(await readFile(outputFile, 'utf8')); }
   catch (error) { throw new FatalError(`Codex returned no structured output: ${(error as Error).message}`); }
-  return validateOutput<T>(request.role, value);
+  const started = jsonLines(result.stdout).find(event => event.type === 'thread.started') as { thread_id?: string } | undefined;
+  return { output: validateOutput<T>(request.role, value), session: started?.thread_id ?? request.session ?? null };
 }

@@ -74,7 +74,7 @@ export async function attemptMilestone(ctx: MilestoneContext): Promise<void> {
   }
 }
 
-// Codex に実装または修正を依頼し、指摘への accepted 応答を指摘集合へ反映する (§11, §14.2, §17.2)
+// 実装 agent に実装または修正を依頼し、指摘への accepted 応答を指摘集合へ反映する。milestone の checkpoint までは同じ session を再開する (§11, §14.2, §17.2)
 export async function implementationStep(ctx: MilestoneContext): Promise<void> {
   const { milestone } = ctx;
   await enterPhase(ctx, 'implementation');
@@ -89,8 +89,8 @@ export async function implementationStep(ctx: MilestoneContext): Promise<void> {
     codeIssues: openIssues(current.codeReview),
     e2eIssues: openIssues(current.e2eReview),
   };
-  const retry = Boolean(input.failure || input.codeIssues.length || input.e2eIssues.length);
-  const output = await recordRun(ctx.root, milestone.id, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir, retry), input));
+  const { output, session } = await recordRun(ctx.root, milestone.id, 'implementation', logDir => implement(agentCall(ctx, 'implementation', logDir), input, current.session));
+  current.session = session;
   await revertLicenseFiles(ctx.dir);
   // worktree の progress.json は使わないため、Codex が変更しても統合に持ち込まない
   await discardChanges(ctx.dir, PROGRESS_FILE);
