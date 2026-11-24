@@ -46,7 +46,8 @@ const E2E_CONTRACT = `E2E scenario contract:
   });
   command(client, text) runs a slash command as the client's operator player. camera(client, position) teleports the player to the position and rotation and waits for rendering. screenshot(client, acId, label) captures the screen for that criterion. mct(client, ...args) runs any other MC Pilot command and returns its data. waitFor(read, until, timeoutMs) polls until the observed state settles.
 - Every criterion assigned to a scenario needs at least one screenshot. Prepare scenes with deterministic commands such as /setblock, /give, /summon and /item replace.
-- Keep the screenshots few: place the variants of a criterion (block states, materials, colors, orientations) side by side in one scene and capture them together. Take another screenshot only for a view the criterion needs that the scene cannot show, such as a GUI, a close-up or another side.`;
+- Keep the screenshots few: place the variants of a criterion (block states, materials, colors, orientations) side by side in one scene and capture them together. Take another screenshot only for a view the criterion needs that the scene cannot show, such as a GUI, a close-up or another side.
+- When fixing an E2E issue, adjust the scene or camera of the existing screenshot instead of adding one. Remove screenshots that no target criterion needs.`;
 
 // 実装・修正の指示。Code Rules・GameTest / E2E の作成指示・失敗情報または指摘を含める (§11, §12.2)
 export function implementationPrompt(input: ImplementationInput): string {
@@ -200,6 +201,7 @@ export function e2eReviewPrompt(input: E2EReviewInput): string {
 
 Compare each screenshot with the Expected Result of its Acceptance Criterion and list every display problem you find now: missing textures, broken block, item or entity models, UV errors, z-fighting, clipping, transparency errors, broken GUI layout, text overflow and inconsistent resources. This list becomes the fixed issue set of the milestone; later reviews only check these issues.
 Review only what the mod renders for the target criteria. Chat and command feedback, toasts and notifications (advancements, recipes, tutorials), the vanilla HUD, debug overlays and log or error text on the screen are outside the review: do not report them.
+Judge from the screenshots you are given. Request another screenshot only when none of them can show the Expected Result; do not ask for extra angles, close-ups or variants just to confirm.
 For each issue give target (the screenshot path), acId, problem, reason and fix. Return an empty list when every screenshot shows the Expected Result.
 
 ${REVIEW_SCOPE}
