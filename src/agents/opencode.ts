@@ -83,7 +83,7 @@ async function assertSessionDirectory(call: AgentCall, request: AgentRequest, se
 }
 
 // opencode CLI を実行し、最後のテキストを JSON として読み、session ID とともに返す。書き込む役割では、session の作業先が root と一致することを確かめてから編集を許可する。
-// session が無ければ、編集を許可しない agent で先に session を作る。失敗は FatalError (§23)
+// session が無ければ、編集を許可しない agent で先に session を作る。最後のテキストが JSON として読めないか schema に従わなければ同じ実行を再試行する。失敗は FatalError (§23)
 export async function runOpencode<T>(call: AgentCall, request: AgentRequest): Promise<AgentResult<T>> {
   const prompt = opencodePrompt(request);
   await writeFile(path.join(call.logDir, 'prompt.md'), prompt);
@@ -94,10 +94,13 @@ export async function runOpencode<T>(call: AgentCall, request: AgentRequest): Pr
     if (!session) throw new FatalError(`opencode did not start a session for ${request.role}`);
     await assertSessionDirectory(call, request, session);
   }
-  const events = await runEvents(call, { ...request, session }, prompt, write);
-  const text = events.filter(event => event.type === 'text').at(-1)?.part?.text?.trim() ?? '';
-  let value: unknown;
-  try { value = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')); }
-  catch { throw new FatalError(`opencode returned no structured output for ${request.role}: ${text.slice(-500)}`); }
-  return { output: validateOutput<T>(request.role, value), session: events.find(event => event.sessionID)?.sessionID ?? session };
+  // 最後のテキストが JSON として読めないか schema に従わなければ、同じ実行を再試行する
+  for (;;) {
+    const events = await runEvents(call, { ...request, session }, prompt, write);
+    const text = events.filter(event => event.type === 'text').at(-1)?.part?.text?.trim() ?? '';
+    let output: T;
+    try { output = validateOutput<T>(request.role, JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ''))); }
+    catch { continue; }
+    return { output, session: events.find(event => event.sessionID)?.sessionID ?? session };
+  }
 }
