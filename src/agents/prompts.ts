@@ -19,7 +19,9 @@ export const CODE_RULES = `Code style:
 // 指摘を列挙するレビューに共通する範囲。この milestone の実装によるものだけを指摘させる (§14.1, §14.3, §17.1)
 const REVIEW_SCOPE = `Scope:
 - Report only issues caused by this implementation. Do not request tests or changes for behavior that NeoForge, Minecraft or dependency mods already implement.
-- This excludes, for example, whether the game starts with or without a dependency, differences in how registered recipes behave depending on dependencies, changes on the dependency side that likely do not affect the essence of the feature, behavior checks of a small replacement made without Mixin, checks of every registered recipe, and E2E tests for what a GameTest can verify almost equally.`;
+- This excludes, for example, whether the game starts with or without a dependency, differences in how registered recipes behave depending on dependencies, changes on the dependency side that likely do not affect the essence of the feature, behavior checks of a small replacement made without Mixin, checks of every registered recipe, and E2E tests for what a GameTest can verify almost equally.
+- Trust NeoForge, Minecraft and dependency mods. Request a check that something does not happen only when it is truly needed.
+- When the intent of a test is clear, do not report nitpicks about it.`;
 
 // GameTest の作成指示 (§15)
 const GAMETEST_CONTRACT = `GameTest contract:
