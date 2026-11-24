@@ -6,10 +6,12 @@
 
 | 役割 | 使用するツール |
 |---|---|
-| 実装・修正 | Codex CLI |
-| 計画・仕様変更・コードレビュー・E2E 画面レビュー | Claude Code CLI |
+| 実装・修正 | Codex CLI (既定) |
+| 計画・仕様変更・コードレビュー・E2E 画面レビュー | Claude Code CLI (既定) |
 | ゲームロジックの確認 | NeoForge GameTest |
 | 描画の確認 (E2E) | NeoForge dedicated server + MC Pilot (`mct`) で操作する Minecraft client |
+
+計画・実装・レビューのそれぞれに Codex CLI・Claude Code CLI・opencode のどれを使うかは、設定の `agents.*.type` で選べます。
 
 ## 必要な環境
 
@@ -17,8 +19,7 @@ Linux または macOS で、次を用意します。
 
 - Node.js 20 以上、Git
 - 対象の NeoForge に合う Java と、Workspace の Gradle Wrapper (`gradlew`)
-- Codex CLI (`codex login` 済み)
-- Claude Code CLI (`claude auth login` 済み)
+- 設定で使う agent CLI：Codex CLI (`codex login` 済み) / Claude Code CLI (`claude auth login` 済み) / opencode (使う provider に `opencode auth login` 済み)
 - MC Pilot (`mct`)
 - NeoForge dedicated server と、MC Pilot で作成した Minecraft client
 
@@ -74,8 +75,9 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
     "gameTest": "runGameTestServer"
   },
   "agents": {
-    "plan": { "command": "claude", "model": "claude-opus-5-5", "effort": "high" },
+    "plan": { "type": "claude", "command": "claude", "model": "claude-opus-5-5", "effort": "high" },
     "implementation": {
+      "type": "codex",
       "command": "codex",
       "initial": { "model": "gpt-6-sol", "effort": "high" },
       "retry": { "model": "gpt-6-sol", "effort": "medium" },
@@ -83,11 +85,13 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
       "provider": null
     },
     "codeReview": {
+      "type": "claude",
       "command": "claude",
       "initial": { "model": "claude-opus-5-5", "effort": "medium" },
       "retry": { "model": "claude-sonnet-5-5", "effort": "medium" }
     },
     "e2eReview": {
+      "type": "claude",
       "command": "claude",
       "initial": { "model": "claude-opus-5-5", "effort": "high" },
       "retry": { "model": "claude-sonnet-5-5", "effort": "high" }
@@ -112,6 +116,7 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 
 ```json
 "implementation": {
+  "type": "codex",
   "command": "codex",
   "initial": { "model": "deepseek-flash", "effort": "high" },
   "retry": { "model": "deepseek-flash", "effort": "medium" },
@@ -124,16 +129,17 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
 |---|---|
 | `parallel` | 同時に進める milestone の上限 (省略時 3)。`1` なら一つずつ進める。各 milestone が Gradle と GameTest server を個別に動かすため、マシンのメモリに合わせて決める |
 | `gradle.compile` / `build` / `gameTest` | 各工程で実行する Gradle task |
-| `agents.plan` | `plan` / `chat` に使う Claude |
-| `agents.implementation` | 実装・修正に使う Codex |
-| `agents.codeReview` | Code Review に使う Claude |
-| `agents.e2eReview` | E2E の screenshot レビューに使う Claude |
-| `agents.*.command` | Codex / Claude CLI のコマンド |
+| `agents.plan` | `plan` / `chat` に使う agent |
+| `agents.implementation` | 実装・修正に使う agent |
+| `agents.codeReview` | Code Review に使う agent |
+| `agents.e2eReview` | E2E の screenshot レビューに使う agent |
+| `agents.*.type` | 使う CLI の種類。`codex`、`claude`、`opencode` のいずれか。実装・修正では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する |
+| `agents.*.command` | Codex / Claude / opencode CLI のコマンド |
 | `agents.implementation.initial` / `retry`、`agents.codeReview.initial` / `retry`、`agents.e2eReview.initial` / `retry` | milestone 内の初回に使う `model` / `effort` と、2 回目以降に使う `model` / `effort`。recovery 後は再び `initial` から始める |
-| `model` | 使用するモデル。`null` なら各 CLI の設定に従う |
-| `effort` | 推論の深さ (`low` / `medium` / `high` など)。`null` なら各 CLI の設定に従う |
-| `agents.implementation.fast` | `true` なら Codex を Fast (priority) tier で実行する。`false` なら CLI の設定に従う |
-| `agents.implementation.provider` | Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` なら CLI の設定の provider (通常は OpenAI) を使う |
+| `model` | 使用するモデル。opencode では `provider/model` の形式。`null` なら各 CLI の設定に従う |
+| `effort` | 推論の深さ (`low` / `medium` / `high` など)。opencode では `--variant` に渡す。`null` なら各 CLI の設定に従う |
+| `agents.*.fast` | `type` が `codex` の場合だけ使う。`true` なら Codex を Fast (priority) tier で実行する。`false` または省略なら CLI の設定に従う |
+| `agents.*.provider` | `type` が `codex` の場合だけ使う。Codex が使う Responses API 互換の provider。`id` は provider 名、`baseUrl` は API の URL、`envKey` は API キーを読む環境変数。`~/.codex/config.toml` は変更しない。`null` または省略なら CLI の設定の provider (通常は OpenAI) を使う |
 | `runtime.command` | MC Pilot CLI のコマンド |
 | `runtime.server.directory` | NeoForge server のディレクトリ (Workspace root からの相対パス) |
 | `runtime.server.command` | server の起動コマンド (`directory` 内で実行) |

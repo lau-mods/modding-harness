@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { editSpec } from '../agents/claude.js';
+import { editSpec } from '../agents/tasks.js';
 import { loadConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
 import { writeAtomic } from '../core/fs.js';

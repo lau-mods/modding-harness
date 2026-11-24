@@ -1,6 +1,6 @@
 import type { AgentCall } from '../agents/agent.js';
 import { loadConfig } from '../config/config.js';
-import type { AgentConfig, CodexConfig, HarnessConfig } from '../config/config.js';
+import type { AgentConfig, HarnessConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
 import { assertIntegrity, captureBaseline } from '../core/integrity.js';
 import type { IntegrityBaseline } from '../core/integrity.js';
@@ -31,7 +31,7 @@ export type WorkflowContext = {
 export type MilestoneContext = WorkflowContext & { milestone: Milestone; dir: string };
 
 // develop で繰り返し実行する agent ごとの、1 回分の呼び出し設定
-type RepeatedCalls = { implementation: CodexConfig; codeReview: AgentConfig; e2eReview: AgentConfig };
+type RepeatedCalls = { implementation: AgentConfig; codeReview: AgentConfig; e2eReview: AgentConfig };
 
 // config / PROJECT.md / plan / progress を読み込み、固定対象の fingerprint を記録する。読めなければ FatalError (§6.3, §23)
 export async function openContext(root: string, runner: Runner): Promise<WorkflowContext> {

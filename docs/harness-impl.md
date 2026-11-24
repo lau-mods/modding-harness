@@ -61,8 +61,8 @@ Harness は Linux および macOS のローカル開発環境で使用する。
 | Git | Git repository および submodule |
 | Java | 対象 NeoForge version に適合 |
 | Build | Gradle Wrapper |
-| Implementation Agent | Codex CLI |
-| Review Agent | Claude Code CLI |
+| Implementation Agent | Codex CLI (既定)、Claude Code CLI または opencode |
+| Review Agent | Claude Code CLI (既定)、Codex CLI または opencode |
 | GameTest | NeoForge GameTest |
 | Minecraft 操作 | MC Pilot |
 | Game Runtime | NeoForge dedicated server および Minecraft client |
@@ -394,11 +394,13 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
   },
   "agents": {
     "plan": {
+      "type": "claude",
       "command": "claude",
       "model": "claude-opus-5-5",
       "effort": "high"
     },
     "implementation": {
+      "type": "codex",
       "command": "codex",
       "initial": { "model": "gpt-6-sol", "effort": "high" },
       "retry": { "model": "gpt-6-sol", "effort": "medium" },
@@ -406,11 +408,13 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
       "provider": null
     },
     "codeReview": {
+      "type": "claude",
       "command": "claude",
       "initial": { "model": "claude-opus-5-5", "effort": "medium" },
       "retry": { "model": "claude-sonnet-5-5", "effort": "medium" }
     },
     "e2eReview": {
+      "type": "claude",
       "command": "claude",
       "initial": { "model": "claude-opus-5-5", "effort": "high" },
       "retry": { "model": "claude-sonnet-5-5", "effort": "high" }
@@ -426,15 +430,19 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 }
 ```
 
-`agents` は役割ごとに使用する agent を指定する。`plan` は `plan` / `chat`、`implementation` は Codex implementation、`codeReview` は Claude Code Review、`e2eReview` は Claude E2E レビューに使用する。
+`agents` は役割ごとに使用する agent を指定する。`plan` は `plan` / `chat`、`implementation` は implementation、`codeReview` は Code Review、`e2eReview` は E2E レビューに使用する。
+
+`type` は役割に使う CLI を `codex`、`claude`、`opencode` のいずれかで指定する。implementation では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する。本書で Codex implementation、Claude review と書く箇所は既定の構成を指し、`type` を変えた場合は設定した CLI が同じ役割を担う。
+
+opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。`model` は `provider/model` の形式で指定し、`effort` は `--variant` に渡す。
 
 `model` と `effort` が `null` の場合、各 CLI の設定に従う。
 
 `implementation`、`codeReview`、`e2eReview` では、`initial` の `model` と `effort` を milestone 内の初回に、`retry` の `model` と `effort` を 2 回目以降に使用する。Implementation の 2 回目以降は実行失敗または未解決の指摘を修正する実行、レビューの 2 回目以降は修正レビューを指す。recovery は milestone を最初からやり直すため、再び `initial` から始める。`provider` は初回と 2 回目以降で共通とする。
 
-`implementation.fast` が `true` の場合、Codex を Fast tier で実行する。`false` の場合は CLI の設定に従う。
+`fast` と `provider` は `type` が `codex` の agent だけで使う。`fast` が `true` の場合、Codex を Fast tier で実行する。`false` または省略の場合は CLI の設定に従う。
 
-`implementation.provider` は Codex が使う Responses API 互換の model provider を定義する。API キーは `envKey` の環境変数から読む。`null` の場合は CLI の設定の provider を使う。
+`provider` は Codex が使う Responses API 互換の model provider を定義する。API キーは `envKey` の環境変数から読む。`null` または省略の場合は CLI の設定の provider を使う。
 
 `parallel` は同時に進める milestone の上限とする。1 以上の整数で、省略時は 3 とする。1 の場合は milestone を一つずつ進める。
 
@@ -493,7 +501,7 @@ node .harness/dist/cli/main.js init
 
 ### 9.3 doctor
 
-`doctor` は Node.js、Git、Java、Gradle Wrapper、Codex、Claude、MC Pilot、Minecraft runtime の構成を診断する。
+`doctor` は Node.js、Git、Java、Gradle Wrapper、各役割に設定した agent CLI (Codex / Claude / opencode)、MC Pilot、Minecraft runtime の構成を診断する。
 
 各項目の利用状態と、問題がある場合の理由を表示する。
 
@@ -544,7 +552,7 @@ harness chat "加工機の燃料に石炭ブロックを追加する"
 - Plan が確定している
 - Git working tree が clean (`progress.json` の変更を除く)
 - Harness submodule が利用可能
-- Codex と Claude が利用可能
+- 各役割に設定した agent CLI が利用可能
 - Gradle と GameTest の実行環境が構成済み
 - E2E の実行環境が構成済み
 

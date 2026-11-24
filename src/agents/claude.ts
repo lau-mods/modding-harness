@@ -1,47 +1,18 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { FatalError } from '../core/errors.js';
-import type { ScenarioResult } from '../e2e/scenario.js';
-import type { Milestone, Plan } from '../plan/plan.js';
-import type { IssueVerdict, ReviewFinding, ReviewIssue } from '../review/issues.js';
-import type { AcceptanceCriterion, Feature } from '../spec/types.js';
-import { agentFailure, outputSchema, runAgentProcess, validateOutput } from './agent.js';
+import { agentFailure, canWrite, outputSchema, runAgentProcess, validateOutput } from './agent.js';
 import type { AgentCall, AgentRequest } from './agent.js';
-import { codeRecheckPrompt, codeReviewPrompt, conflictReviewPrompt, e2eRecheckPrompt, e2eReviewPrompt, planPrompt, specEditPrompt } from './prompts.js';
 
-// 計画作成の入力。planned は追記先の計画済み milestone (§6.2, §9.6)
-export type PlanInput = { projectMarkdown: string; features: Feature[]; projectFiles: string[]; planned: Milestone[] };
-
-// 仕様変更の入力 (§9.6)
-export type SpecEditInput = { request: string; projectMarkdown: string };
-
-// 仕様変更の結果。PROJECT.md 全文を返し、書き込みは Harness が行う (§9.6)
-export type SpecEditOutput = { projectMarkdown: string; summary: string };
-
-// Code Review の入力 (§14.1)
-export type CodeReviewInput = {
-  milestone: Milestone;
-  criteria: AcceptanceCriterion[];
-  diff: string; // 初回は復元基点から、再確認は前回レビューからの Git diff
-};
-
-// 統合の衝突解消のレビューの入力。diff は conflict marker を含む merge 直後の状態からの差分 (§14.3)
-export type ConflictReviewInput = CodeReviewInput & { conflicts: string[] };
-
-// E2E レビューの入力 (§17.1)
-export type E2EReviewInput = {
-  milestone: Milestone;
-  criteria: AcceptanceCriterion[];
-  scenarios: ScenarioResult[]; // screenshot と対象 AC を含む実行結果
-};
-
-// claude CLI の引数を組み立てる。読み取り専用 tool のみ許可する。画像は prompt に記載したパスを Read tool で開かせる
+// claude CLI の引数を組み立てる。読み取り専用 tool に加え、書き込む役割には編集と ./gradlew の実行を許可する。画像は prompt に記載したパスを Read tool で開かせる
 export function claudeArgs(call: AgentCall, request: AgentRequest): string[] {
+  const write = canWrite(request.role);
   return [
     '-p',
     '--output-format', 'json',
     '--json-schema', JSON.stringify(outputSchema(request.role)),
-    '--tools', 'Read,Grep,Glob',
+    '--tools', write ? 'Read,Grep,Glob,Edit,Write,Bash' : 'Read,Grep,Glob',
+    ...(write ? ['--allowedTools', 'Edit', 'Write', 'Bash(./gradlew:*)'] : []),
     '--permission-mode', 'dontAsk',
     ...(call.readDirs ?? []).flatMap(dir => ['--add-dir', dir]),
     ...(call.config.model ? ['--model', call.config.model] : []),
@@ -59,39 +30,4 @@ export async function runClaude<T>(call: AgentCall, request: AgentRequest): Prom
   if (result.code !== 0 || envelope.is_error || envelope.subtype !== 'success') throw agentFailure(request.role, result);
   if (envelope.structured_output === undefined) throw new FatalError(`Claude returned no structured output for ${request.role}`);
   return validateOutput<T>(request.role, envelope.structured_output);
-}
-
-// Feature を milestone に割り当てた計画案を Claude に作らせる (§6.2)
-export async function proposePlan(call: AgentCall, input: PlanInput): Promise<Plan> {
-  return runClaude<Plan>(call, { role: 'plan', prompt: planPrompt(input), images: [] });
-}
-
-// 製品要求を反映した PROJECT.md 案を Claude に作らせる (§9.6)
-export async function editSpec(call: AgentCall, input: SpecEditInput): Promise<SpecEditOutput> {
-  return runClaude<SpecEditOutput>(call, { role: 'spec_edit', prompt: specEditPrompt(input), images: [] });
-}
-
-// 初回 Code Review。発見したすべての指摘を列挙させる (§14.1)
-export async function reviewCode(call: AgentCall, input: CodeReviewInput): Promise<ReviewFinding[]> {
-  return (await runClaude<{ findings: ReviewFinding[] }>(call, { role: 'code_review', prompt: codeReviewPrompt(input), images: [] })).findings;
-}
-
-// Code Review の修正レビュー。固定済み指摘の解消状態だけを判定させる (§14.2)
-export async function recheckCode(call: AgentCall, input: CodeReviewInput, issues: ReviewIssue[]): Promise<IssueVerdict[]> {
-  return (await runClaude<{ verdicts: IssueVerdict[] }>(call, { role: 'code_recheck', prompt: codeRecheckPrompt(input, issues), images: [] })).verdicts;
-}
-
-// 統合の衝突解消のレビュー。解消内容の指摘をすべて列挙させる (§14.3)
-export async function reviewConflicts(call: AgentCall, input: ConflictReviewInput): Promise<ReviewFinding[]> {
-  return (await runClaude<{ findings: ReviewFinding[] }>(call, { role: 'conflict_review', prompt: conflictReviewPrompt(input), images: [] })).findings;
-}
-
-// 初回 E2E レビュー。screenshot から表示上の問題を列挙させる (§17.1)
-export async function reviewE2E(call: AgentCall, input: E2EReviewInput): Promise<ReviewFinding[]> {
-  return (await runClaude<{ findings: ReviewFinding[] }>(call, { role: 'e2e_review', prompt: e2eReviewPrompt(input), images: [] })).findings;
-}
-
-// E2E の修正レビュー。固定済み指摘の解消状態だけを判定させる (§17.2)
-export async function recheckE2E(call: AgentCall, input: E2EReviewInput, issues: ReviewIssue[]): Promise<IssueVerdict[]> {
-  return (await runClaude<{ verdicts: IssueVerdict[] }>(call, { role: 'e2e_recheck', prompt: e2eRecheckPrompt(input, issues), images: [] })).verdicts;
 }

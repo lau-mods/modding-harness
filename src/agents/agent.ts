@@ -3,7 +3,7 @@ import { ExecutionFailure, FatalError } from '../core/errors.js';
 import type { ProcessResult, Runner } from '../core/process.js';
 import { tail } from '../core/process.js';
 
-// agent の役割。Codex: implementation、Claude: plan / spec_edit / code_review / code_recheck / conflict_review / e2e_review / e2e_recheck
+// agent の役割。どの CLI で実行するかは設定の agents.*.type で決まる (§8)
 export type AgentRole = 'implementation' | 'plan' | 'spec_edit' | 'code_review' | 'code_recheck' | 'conflict_review' | 'e2e_review' | 'e2e_recheck';
 
 // JSON Schema オブジェクト
@@ -14,6 +14,11 @@ export type AgentCall<C extends AgentConfig = AgentConfig> = { config: C; root: 
 
 // agent 呼び出し 1 回分の要求。images は agent に添付する画像
 export type AgentRequest = { role: AgentRole; prompt: string; images: string[] };
+
+// Workspace のファイルを編集する役割か。それ以外の役割は読み取り専用で実行する
+export function canWrite(role: AgentRole): boolean {
+  return role === 'implementation';
+}
 
 // agent 1 回の実行時間の上限
 export const AGENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
@@ -52,9 +57,9 @@ export function agentFailure(role: AgentRole, result: ProcessResult): FatalError
 }
 
 // agent CLI を実行する。timeout も再試行せず FatalError とする (§23)
-export async function runAgentProcess(call: AgentCall, role: AgentRole, args: string[], input: string): Promise<ProcessResult> {
+export async function runAgentProcess(call: AgentCall, role: AgentRole, args: string[], input: string, env: NodeJS.ProcessEnv = {}): Promise<ProcessResult> {
   try {
-    return await call.runner(call.config.command, args, { cwd: call.root, input, logDir: call.logDir, timeoutMs: AGENT_TIMEOUT_MS });
+    return await call.runner(call.config.command, args, { cwd: call.root, input, env, logDir: call.logDir, timeoutMs: AGENT_TIMEOUT_MS });
   } catch (error) {
     if (error instanceof ExecutionFailure) throw new FatalError(`${role} agent failed: ${error.message}`);
     throw error;

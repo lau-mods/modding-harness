@@ -2,10 +2,9 @@ import type { FailureReport } from '../core/errors.js';
 import { milestoneId } from '../plan/plan.js';
 import type { ReviewIssue } from '../review/issues.js';
 import type { AcceptanceCriterion } from '../spec/types.js';
-import type { CodeReviewInput, ConflictReviewInput, E2EReviewInput, PlanInput, SpecEditInput } from './claude.js';
-import type { ImplementationInput } from './codex.js';
+import type { CodeReviewInput, ConflictReviewInput, E2EReviewInput, ImplementationInput, PlanInput, SpecEditInput } from './tasks.js';
 
-// すべての Codex 実装・修正要求に全文を含める Code Rules (§12.1)
+// すべての実装・修正要求に全文を含める Code Rules (§12.1)
 export const CODE_RULES = `Code style:
 - Implement exactly what the target Acceptance Criteria require; other behavior belongs to its own milestone.
 - Use vanilla Minecraft and NeoForge mechanisms (registries, JSON resources, existing base classes) before custom code.
@@ -30,7 +29,7 @@ const E2E_CONTRACT = `E2E scenario contract:
 - E2E verifies rendering in the Minecraft client: models, textures, UVs, z-fighting, clipping, transparency, GUI layout and text. Write a scenario for every target criterion whose Expected Result describes what the client displays.
 - Put scenarios under tests/e2e/ and register them in tests/acceptance.json under "e2e": {"acId": "AC-F001-002", "scenario": "tests/e2e/copper-press.mjs"}. Several criteria may share one scenario.
 - The harness builds the mod, deploys it, starts the NeoForge server and every MC Pilot client, waits until each client joins a fresh flat world with operator permission, runs each scenario with node from the project root, and stops everything afterwards.
-- A scenario only prepares the scene, sets the camera and takes screenshots. Claude reviews the screenshots against the Expected Result:
+- A scenario only prepares the scene, sets the camera and takes screenshots. A reviewer checks the screenshots against the Expected Result:
   const { scenario, command, camera, screenshot, waitFor, mct } = await import(process.env.HARNESS_E2E_LIB);
   await scenario(async ({ clients }) => {
     const client = clients[0];
@@ -42,12 +41,12 @@ const E2E_CONTRACT = `E2E scenario contract:
 - Every criterion assigned to a scenario needs at least one screenshot. Prepare scenes with deterministic commands such as /setblock, /give, /summon and /item replace.
 - Keep the screenshots few: place the variants of a criterion (block states, materials, colors, orientations) side by side in one scene and capture them together. Take another screenshot only for a view the criterion needs that the scene cannot show, such as a GUI, a close-up or another side.`;
 
-// Codex への実装・修正指示。Code Rules・GameTest / E2E の作成指示・失敗情報または指摘を含める (§11, §12.2)
+// 実装・修正の指示。Code Rules・GameTest / E2E の作成指示・失敗情報または指摘を含める (§11, §12.2)
 export function implementationPrompt(input: ImplementationInput): string {
   const feedback = [
     input.failure && block(`Execution failure in ${input.failure.phase}`, failureText(input.failure)),
     input.codeIssues.length && block('Open code review issues', json(input.codeIssues.map(issueView))),
-    input.e2eIssues.length && block('Open E2E review issues (the screenshots are attached)', json(input.e2eIssues.map(issueView))),
+    input.e2eIssues.length && block('Open E2E review issues (each target is a screenshot; open it)', json(input.e2eIssues.map(issueView))),
   ].filter(Boolean);
   return `You implement a NeoForge Minecraft mod. Work directly in the current project directory.
 
@@ -58,7 +57,7 @@ Rules:
 - Never create, modify or delete a file whose name contains LICENSE or LICENCE; the harness discards such changes.
 - Committed files and the built jar are published. Never write environment-specific or personal information into them: absolute paths, user or machine names, e-mail addresses, credentials, or per-asset license, attribution and credit notes.
 - Leave all changes uncommitted. The harness creates the Git checkpoint.
-- Run Gradle from the project root with ./gradlew as a standalone command. The harness provides .codex/rules/harness-gradle.rules to allow that command outside the sandbox; do not edit this rule. Avoid shell wrappers, absolute executable paths, or inline environment assignments for Gradle.
+- Run Gradle from the project root with ./gradlew as a standalone command. The harness allows that command (for Codex through .codex/rules/harness-gradle.rules, which you must not edit). Avoid shell wrappers, absolute executable paths, or inline environment assignments for Gradle.
 - Follow the code style below in every change, including repairs.
 - Files outside the mod sources (Java sources, resources under src/, GameTests, tests/e2e/ and tests/acceptance.json), such as README, gradle.properties, build.gradle, settings.gradle and mod metadata, keep their content: change them only when a target Acceptance Criterion or the GameTest/E2E setup cannot work otherwise, and then change only the lines it needs, without rewriting, reformatting or reordering the rest.
 ${feedback.length ? `- Resolve every item in the feedback below with the smallest change that fixes it.
@@ -84,7 +83,7 @@ ${block('PROJECT.md', input.projectMarkdown)}
 Respond with a summary of the change, the changed file paths, and one response per review issue listed above.`;
 }
 
-// Feature を milestone に割り当てる計画案を Claude に作らせる指示。計画済み milestone があれば、その続きを作らせる (§6.2, §9.6)
+// Feature を milestone に割り当てる計画案を作らせる指示。計画済み milestone があれば、その続きを作らせる (§6.2, §9.6)
 export function planPrompt(input: PlanInput): string {
   return `You plan the development of a NeoForge Minecraft mod. Read the project files you need.
 
@@ -186,7 +185,7 @@ ${block('Git diff of the conflict resolution', input.diff)}`;
 
 // 初回 E2E レビューの指示。screenshot と AC の Expected Result から表示上の問題を列挙させる (§17.1)
 export function e2eReviewPrompt(input: E2EReviewInput): string {
-  return `You review screenshots of a NeoForge Minecraft mod taken by the E2E scenarios of milestone ${input.milestone.id}. Open every screenshot with the Read tool.
+  return `You review screenshots of a NeoForge Minecraft mod taken by the E2E scenarios of milestone ${input.milestone.id}. Open every screenshot listed below.
 
 Compare each screenshot with the Expected Result of its Acceptance Criterion and list every display problem you find now: missing textures, broken block, item or entity models, UV errors, z-fighting, clipping, transparency errors, broken GUI layout, text overflow and inconsistent resources. This list becomes the fixed issue set of the milestone; later reviews only check these issues.
 Review only what the mod renders for the target criteria. Chat and command feedback, toasts and notifications (advancements, recipes, tutorials), the vanilla HUD, debug overlays and log or error text on the screen are outside the review: do not report them.
@@ -199,7 +198,7 @@ ${block('Target Acceptance Criteria', criteriaText(input.criteria))}`;
 
 // E2E の修正レビュー指示。固定済み指摘の解消状態だけを判定させ、新規指摘を禁止する (§17.2)
 export function e2eRecheckPrompt(input: E2EReviewInput, issues: ReviewIssue[]): string {
-  return `Re-check the new screenshots of milestone ${input.milestone.id} of a NeoForge Minecraft mod. Open every screenshot with the Read tool.
+  return `Re-check the new screenshots of milestone ${input.milestone.id} of a NeoForge Minecraft mod. Open every screenshot listed below.
 
 Judge only the issues listed below; their targets point to screenshots of an earlier run, and the new screenshots of the same criteria are listed below. Return one verdict per issue ID: "resolved" when the new screenshots no longer show the problem, "open" when they still do or it has come back. Do not report new issues.
 An issue about content outside the review (chat and command feedback, toasts and notifications, the vanilla HUD, debug overlays, log or error text on the screen) is resolved.

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { proposePlan } from '../agents/claude.js';
+import { proposePlan } from '../agents/tasks.js';
 import { loadConfig } from '../config/config.js';
 import type { HarnessConfig } from '../config/config.js';
 import { FatalError } from '../core/errors.js';
