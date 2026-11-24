@@ -6,7 +6,7 @@
 
 | 役割 | 使用するツール |
 |---|---|
-| 実装・修正 | Codex CLI (既定) |
+| 実装・修正 | opencode (既定) |
 | 計画・仕様変更・コードレビュー・E2E 画面レビュー | Claude Code CLI (既定) |
 | ゲームロジックの確認 | NeoForge GameTest |
 | 描画の確認 (E2E) | NeoForge dedicated server + MC Pilot (`mct`) で操作する Minecraft client |
@@ -77,11 +77,11 @@ template の特定の revision を使う場合は `--template-ref <ref>` を指�
   "agents": {
     "plan": { "type": "claude", "command": "claude", "model": "claude-opus-5-5", "effort": "high" },
     "implementation": {
-      "type": "codex",
-      "command": "codex",
-      "initial": { "model": "gpt-6-sol", "effort": "high" },
-      "retry": { "model": "gpt-6-sol", "effort": "medium" },
-      "fast": true,
+      "type": "opencode",
+      "command": "opencode",
+      "initial": { "model": "openai/gpt-5.6-sol", "effort": "high" },
+      "retry": { "model": "openai/gpt-5.6-sol", "effort": "medium" },
+      "fast": false,
       "provider": null
     },
     "codeReview": {

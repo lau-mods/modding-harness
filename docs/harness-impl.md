@@ -386,7 +386,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 ```json
 {
-  "parallel": 2,
+  "parallel": 3,
   "gradle": {
     "compile": "classes",
     "build": "build",
@@ -400,11 +400,11 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
       "effort": "high"
     },
     "implementation": {
-      "type": "codex",
-      "command": "codex",
-      "initial": { "model": "gpt-6-sol", "effort": "high" },
-      "retry": { "model": "gpt-6-sol", "effort": "medium" },
-      "fast": true,
+      "type": "opencode",
+      "command": "opencode",
+      "initial": { "model": "openai/gpt-5.6-sol", "effort": "high" },
+      "retry": { "model": "openai/gpt-5.6-sol", "effort": "medium" },
+      "fast": false,
       "provider": null
     },
     "codeReview": {
@@ -432,7 +432,7 @@ Milestone の checkpoint 作成時には最新の進捗を commit に含める�
 
 `agents` は役割ごとに使用する agent を指定する。`plan` は `plan` / `chat`、`implementation` は implementation、`codeReview` は Code Review、`e2eReview` は E2E レビューに使用する。
 
-`type` は役割に使う CLI を `codex`、`claude`、`opencode` のいずれかで指定する。implementation では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する。本書で Codex implementation、Claude review と書く箇所は既定の構成を指し、`type` を変えた場合は設定した CLI が同じ役割を担う。
+`type` は役割に使う CLI を `codex`、`claude`、`opencode` のいずれかで指定する。implementation では Workspace への書き込みと `./gradlew` の実行を許可し、それ以外の役割は読み取り専用で実行する。本書で Codex implementation、Claude review と書く箇所は、各役割に設定した CLI が担う。
 
 opencode には構造化出力の指定が無いため、Harness は出力の JSON Schema を prompt に含め、最後の応答を JSON として読んで検証する。権限は `OPENCODE_CONFIG_CONTENT` で定義した agent で与え、opencode の利用者設定は変更しない。`model` は `provider/model` の形式で指定し、`effort` は `--variant` に渡す。
 
