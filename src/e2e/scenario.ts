@@ -68,7 +68,7 @@ export async function runScenario(root: string, dir: string, config: RuntimeConf
 export function scenarioEnv(root: string, config: RuntimeConfig, session: RuntimeSession, scenario: ScenarioDefinition, resultFile: string, screenshotDir: string): NodeJS.ProcessEnv {
   return {
     ...pilotEnv(root),
-    HARNESS_MCT: config.command,
+    HARNESS_MCT: config.command.includes('/') || config.command.includes(path.sep) ? path.resolve(root, config.command) : config.command,
     HARNESS_E2E_LIB: path.join(harnessRoot(), 'e2e', 'lib.mjs'),
     HARNESS_CLIENTS: JSON.stringify(session.clients),
     HARNESS_RESULT_FILE: resultFile,
