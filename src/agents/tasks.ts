@@ -100,7 +100,7 @@ export async function reviewE2E(call: AgentCall, input: E2EReviewInput): Promise
 
 // E2E の修正レビュー。固定済み指摘の解消状態だけを判定させる (§17.2)
 export async function recheckE2E(call: AgentCall, input: E2EReviewInput, issues: ReviewIssue[]): Promise<IssueVerdict[]> {
-  const images = [...new Set([...issues.map(issue => issue.target), ...screenshots(input)])];
+  const images = [...new Set(screenshots(input))];
   return (await runAgent<{ verdicts: IssueVerdict[] }>(call, { role: 'e2e_recheck', prompt: e2eRecheckPrompt(input, issues), images })).verdicts;
 }
 
